@@ -247,7 +247,7 @@ pub async fn preflight_pdfs(zotero:&ZoteroClient,items:&[Value])->Result<PdfPref
     Ok(result)
 }
 
-pub fn metadata(item: &Value) -> Result<(String,i64,String,Vec<String>,Option<i32>,String,String,String,String,String,Vec<String>,bool)> {
+pub fn metadata(item: &Value) -> Result<(String,i64,String,Vec<String>,Option<i32>,String,String,String,String,String,String,Vec<String>,bool)> {
     let key=item.get("key").and_then(Value::as_str).context("条目缺少 key")?.to_string();
     let version=item.get("version").and_then(Value::as_i64).unwrap_or_default();
     let d=item.get("data").unwrap_or(&Value::Null);
@@ -256,8 +256,9 @@ pub fn metadata(item: &Value) -> Result<(String,i64,String,Vec<String>,Option<i3
     let year=text("date").get(0..4).and_then(|y|y.parse().ok());
     let tags=d.get("tags").and_then(Value::as_array).map(|a|a.iter().filter_map(|t|t.get("tag").and_then(Value::as_str).map(str::to_string)).collect()).unwrap_or_default();
     let publication=if text("publicationTitle").is_empty(){text("bookTitle")}else{text("publicationTitle")};
+    let journal_abbreviation=text("journalAbbreviation");
     let trashed=d.get("deleted").and_then(Value::as_i64).unwrap_or_default()==1;
-    Ok((key,version,text("title"),creators,year,publication,text("abstractNote"),text("DOI"),text("url"),text("itemType"),tags,trashed))
+    Ok((key,version,text("title"),creators,year,publication,journal_abbreviation,text("abstractNote"),text("DOI"),text("url"),text("itemType"),tags,trashed))
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -315,9 +316,9 @@ fn readable_attachments(attachments:Vec<Attachment>,unreadable:&BTreeSet<String>
 }
 
 async fn upsert_from_zotero(state: &crate::state::AppState, zotero: &ZoteroClient, item: &Value, unreadable:&BTreeSet<String>) -> Result<(String,PdfSync,Vec<Attachment>)> {
-    let (key,version,title,creators,year,publication,abstract_note,doi,url,item_type,tags,trashed)=metadata(item)?;
+    let (key,version,title,creators,year,publication,journal_abbreviation,abstract_note,doi,url,item_type,tags,trashed)=metadata(item)?;
     let previous=db::paper_by_zotero_key(&state.db,&key)?;
-    let id=db::upsert_paper(&state.db,&key,version,&title,&creators,year,&publication,&abstract_note,&doi,&url,&item_type,&tags,trashed)?;
+    let id=db::upsert_paper(&state.db,&key,version,&title,&creators,year,&publication,&journal_abbreviation,&abstract_note,&doi,&url,&item_type,&tags,trashed)?;
     let item_keys:Vec<String>=item.get("data").and_then(|d|d.get("collections")).and_then(Value::as_array).map(|a|a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
     db::set_item_collections(&state.db,&id,&item_keys)?;
     let attachments=readable_attachments(zotero.pdf_attachments(item).await?,unreadable);
@@ -361,8 +362,8 @@ pub async fn sync_existing(state: &crate::state::AppState) -> Result<usize> {
     for item in changes {
         let Some(key) = item.get("key").and_then(Value::as_str) else { continue; };
         if !known.contains(key) { continue; }
-        let (key,version,title,creators,year,publication,abstract_note,doi,url,item_type,tags,trashed) = metadata(&item)?;
-        let id = db::upsert_paper(&state.db,&key,version,&title,&creators,year,&publication,&abstract_note,&doi,&url,&item_type,&tags,trashed)?;
+        let (key,version,title,creators,year,publication,journal_abbreviation,abstract_note,doi,url,item_type,tags,trashed) = metadata(&item)?;
+        let id = db::upsert_paper(&state.db,&key,version,&title,&creators,year,&publication,&journal_abbreviation,&abstract_note,&doi,&url,&item_type,&tags,trashed)?;
         let item_keys: Vec<String> = item.get("data").and_then(|d|d.get("collections")).and_then(Value::as_array).map(|a|a.iter().filter_map(Value::as_str).map(str::to_string).collect()).unwrap_or_default();
         db::set_item_collections(&state.db,&id,&item_keys)?;
         updated += 1;
@@ -380,7 +381,7 @@ mod tests {
 
     fn pdf(key:&str)->Attachment{Attachment{key:key.into(),title:format!("PDF {key}"),filename:format!("{key}.pdf")}}
     fn existing_paper(db:&db::SharedDb)->Paper{
-        let id=db::upsert_paper(db,"PDFTEST",1,"Paper",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id=db::upsert_paper(db,"PDFTEST",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         db::replace_attachments(db,&id,&[pdf("PDF-A")]).unwrap();
         db::set_main_pdf(db,&id,Some("PDF-A"),false).unwrap();
         db::set_state(db,&id,"parse_state","succeeded").unwrap();
@@ -427,7 +428,7 @@ mod tests {
     #[test]
     fn missing_pdf_stays_metadata_only_without_ai_queue(){
         let db=db::open(Path::new(":memory:")).unwrap();
-        let id=db::upsert_paper(&db,"NOPDF",1,"Paper",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id=db::upsert_paper(&db,"NOPDF",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         db::set_state(&db,&id,"ai_state","queued").unwrap();
         let previous=db::get_paper(&db,&id).unwrap();
         let result=sync_pdf(&db,&id,Some(&previous),&[]).unwrap();

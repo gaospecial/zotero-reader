@@ -1,60 +1,143 @@
-.service-summary {
-  display: flex;
-  align-items: center;
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
-.service-list > .service-config-row {
-  display: block;
+.service-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e7e3db;
+  border-radius: 6px;
+  background: #fcfbf8;
 }
 
-.service-config-row .api-key-field {
-  margin: 11px 0 0 40px;
-  padding-top: 10px;
-  border-top: 1px solid #f0ece5;
+.service-card-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 30px;
 }
 
-.api-key-field {
+.service-card-header .service-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.service-card-title {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.service-card-title strong {
+  color: #454038;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.service-card-title .config-ok,
+.service-card-title .config-off {
+  margin-left: 0;
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.service-field {
+  min-width: 0;
   display: grid;
   gap: 6px;
 }
 
-.api-key-field > label {
+.service-field > span {
   color: #6f675b;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 600;
 }
 
-.api-key-input-row {
-  display: flex;
-  gap: 7px;
-}
-
-.api-key-input-row input {
+.service-field input {
+  width: 100%;
   min-width: 0;
-  flex: 1;
   height: 32px;
-  padding: 0 10px;
+  padding: 0 9px;
   border: 1px solid #ddd8ce;
   border-radius: 4px;
   background: #fff;
   color: #454038;
-  font-size: 10px;
+  font-size: 9px;
+  text-overflow: ellipsis;
 }
 
-.api-key-input-row input:focus {
+.service-field input:focus {
   border-color: #bd9389;
   box-shadow: 0 0 0 3px #f9f1ee;
 }
 
-.api-key-input-row input::placeholder {
+.service-field input[readonly] {
+  background: #f7f5f0;
+  color: #756d61;
+  cursor: default;
+}
+
+.service-field input::placeholder {
   color: #aaa398;
 }
 
-.api-key-input-row button {
-  min-width: 64px;
-  height: 32px;
-  padding: 0 11px;
+.secret-input {
+  position: relative;
+  min-width: 0;
+}
+
+.secret-input input {
+  padding-right: 34px;
+}
+
+.visibility-button {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  color: #8c8377;
+}
+
+.visibility-button:hover:not(:disabled) {
+  background: #f1ede6;
+  color: var(--red);
+}
+
+.service-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+}
+
+.service-meta {
+  min-width: 0;
+  flex: 1;
+  margin: 0;
+  overflow: hidden;
+  color: #a0988b;
+  font-size: 7px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.service-save {
+  min-width: 48px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0 10px;
   border-radius: 4px;
   background: var(--red);
   color: #fff;
@@ -62,12 +145,12 @@
   font-weight: 600;
 }
 
-.api-key-input-row button:hover:not(:disabled) {
+.service-save:hover:not(:disabled) {
   background: var(--red-dark);
 }
 
-.api-key-input-row button svg {
-  width: 13px;
-  height: 13px;
-  vertical-align: middle;
+@media (max-width: 640px) {
+  .service-grid {
+    grid-template-columns: 1fr;
+  }
 }

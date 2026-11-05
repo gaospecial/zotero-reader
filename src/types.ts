@@ -7,7 +7,7 @@ export interface Figure { path: string; caption: string; label: string }
 export interface Interpretation { id: string; itemId: string; markdownVersionId: string | null; titleZh: string; oneSentence: string; sections: Section[]; figures: Figure[]; model: string; createdAt: string }
 export interface Paper {
   id: string; zoteroKey: string; zoteroVersion: number; title: string; titleZh: string; oneSentence: string;
-  creators: string[]; year: number | null; publication: string; abstractNote: string; doi: string; url: string; itemType: string;
+  creators: string[]; year: number | null; publication: string; journalAbbreviation: string; abstractNote: string; doi: string; url: string; itemType: string;
   tags: string[]; collections: string[]; pdfState: string; parseState: string; aiState: string; zoteroState: string; localState: string;
   readState: 'unread' | 'reading' | 'read'; mainPdfKey: string | null; needsPdfChoice: boolean; error: string | null;
   interpretationId: string | null; pendingZoteroTrash: boolean; updatedAt: string; importedAt: string;
@@ -18,6 +18,7 @@ export interface QaMessage { id: string; itemId: string; role: 'user' | 'assista
 export interface LibraryQuery { search?: string; collection?: string; status?: string; view?: string; sort?: string }
 export interface LibraryStats { total: number; unread: number; processing: number; trash: number; pendingSync: number }
 export interface ServiceStatus { zoteroConnected: boolean; deepseekConfigured: boolean; doc2xConfigured: boolean; demoMode: boolean }
+export interface ServiceConfiguration { zoteroBaseUrl: string; deepseekApiKey: string; doc2xApiKey: string }
 export interface Bootstrap { papers: Paper[]; collections: Collection[]; stats: LibraryStats; services: ServiceStatus }
 export interface PdfIssue { itemKey: string; title: string; attachmentKey: string; error: string }
 export interface ImportPreview { collectionKeys: string[]; collectionNames: string[]; total: number; withPdf: number; withoutPdf: number; multiplePdf: number; pdfIssues: PdfIssue[] }

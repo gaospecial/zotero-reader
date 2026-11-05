@@ -1,9 +1,10 @@
-import { BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, Import, Library, LoaderCircle, NotebookPen, Plus, Recycle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, Import, Library, LoaderCircle, NotebookPen, Plus, Recycle, RefreshCw, Star, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import appIcon from '../../src-tauri/icons/64x64.png';
 import type { Collection, LibraryStats, ServiceStatus, ViewName } from '../types';
 
-interface Props { view: ViewName; onView: (view: ViewName) => void; collection: string; onCollection: (key: string) => void; collections: Collection[]; stats: LibraryStats; services: ServiceStatus; onImport: () => void; onSync: (key: string) => void; syncingCollection: string | null; onSettings: () => void }
-export default function Sidebar({ view, onView, collection, onCollection, collections, stats, services, onImport, onSync, syncingCollection, onSettings }: Props) {
+interface Props { view: ViewName; onView: (view: ViewName) => void; collection: string; onCollection: (key: string) => void; collections: Collection[]; stats: LibraryStats; starredCount: number; services: ServiceStatus; onImport: () => void; onSync: (key: string) => void; syncingCollection: string | null; onSettings: () => void }
+export default function Sidebar({ view, onView, collection, onCollection, collections, stats, starredCount, services, onImport, onSync, syncingCollection, onSettings }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(collections.map(c => c.key)));
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
   useEffect(() => {
@@ -29,11 +30,12 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     </div>;
   };
   return <aside className="sidebar">
-    <div className="brand"><div className="brand-mark">Z</div><div><strong>Zotero</strong><span>READER</span></div><span className="brand-version">0.1</span></div>
+    <div className="brand"><img className="brand-app-icon" src={appIcon} alt="Zotero Reader 应用图标" /><div><strong>Zotero</strong><span>READER</span></div><span className="brand-version">0.1</span></div>
     <button className="import-button" onClick={onImport}><Import size={16} /><span>导入 Zotero 分类</span><Plus size={15} /></button>
     <nav className="primary-nav" aria-label="主导航">
       <button className={view === 'library' && collection === 'all' ? 'active' : ''} onClick={() => { onCollection('all'); onView('library'); }}><Library size={17} /><span>全部文献</span><small>{stats.total}</small></button>
       <button className={view === 'library' && collection === 'unread' ? 'active' : ''} onClick={() => { onCollection('unread'); onView('library'); }}><BookOpen size={17} /><span>未读</span><small>{stats.unread}</small></button>
+      <button className={view === 'library' && collection === 'starred' ? 'active' : ''} onClick={() => { onCollection('starred'); onView('library'); }} aria-label="星标"><Star size={17} fill={view === 'library' && collection === 'starred' ? 'currentColor' : 'none'} /><span>星标</span><small>{starredCount || ''}</small></button>
       <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')}><NotebookPen size={17} /><span>查看备忘</span></button>
       <button className={view === 'trash' ? 'active' : ''} onClick={() => onView('trash')}><Recycle size={17} /><span>回收站</span><small>{stats.trash || ''}</small></button>
     </nav>

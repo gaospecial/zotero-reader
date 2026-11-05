@@ -4,9 +4,67 @@ import App from '../App';
 import { api } from '../lib/api';
 import { demoDetail, demoPapers } from '../lib/demo';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  window.localStorage.clear();
+});
 
- describe('Zotero Reader 工作台', () => {
+describe('Zotero Reader 工作台', () => {
+  it('列表星标可切换并持久化，且不改变已读状态', async () => {
+    const setRead = vi.spyOn(api, 'setRead');
+    render(<App />);
+    const star = (await screen.findAllByRole('button', { name: '添加星标' }))[0];
+    expect(star.closest('article')).toHaveAttribute('id', 'paper-demo-1');
+    fireEvent.click(star);
+    expect(screen.getByRole('button', { name: '取消星标' })).toHaveAttribute('aria-pressed', 'true');
+    expect(window.localStorage.getItem('reader-starred-demo-1')).toBe('true');
+    expect(setRead).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
+    expect(document.querySelector('#paper-demo-1 .star-marker')).toHaveAttribute('aria-pressed', 'false');
+    expect(window.localStorage.getItem('reader-starred-demo-1')).toBe('false');
+  });
+
+  it('列表与阅读页星标实时双向同步', async () => {
+    render(<App />);
+    fireEvent.click((await screen.findAllByRole('button', { name: '添加星标' }))[0]);
+    fireEvent.click(screen.getByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    const readerStar = await screen.findByRole('button', { name: '已加星标' });
+    expect(readerStar).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(readerStar);
+    expect(readerStar).toHaveTextContent('添加星标');
+    expect(document.querySelector('#paper-demo-1 .star-marker')).toHaveAttribute('aria-pressed', 'false');
+    expect(window.localStorage.getItem('reader-starred-demo-1')).toBe('false');
+  });
+
+  it('侧栏星标位于未读之后，只显示收藏文献并随取消实时更新', async () => {
+    render(<App />);
+    const firstStar = (await screen.findAllByRole('button', { name: '添加星标' }))[0];
+    fireEvent.click(firstStar);
+    const navigation = document.querySelector('.primary-nav')!;
+    const starNavigation = screen.getByRole('button', { name: '星标' });
+    expect(navigation.children[2]).toBe(starNavigation);
+    expect(starNavigation).toHaveTextContent('1');
+    fireEvent.click(starNavigation);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('星标文献1');
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(1));
+    expect(screen.getByText('生成式人工智能如何促进大学生的自我调节学习？')).toBeInTheDocument();
+    expect(screen.queryByText('从“给答案”到“促思考”：智能辅导反馈设计的实证研究')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '取消星标' }));
+    expect(await screen.findByText('还没有星标文献')).toBeInTheDocument();
+    expect(document.querySelectorAll('.paper-row')).toHaveLength(0);
+    expect(starNavigation).not.toHaveTextContent('1');
+  });
+
+  it('文献信息显示第一作者、粗斜体期刊缩写和年份', async () => {
+    render(<App />);
+    await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
+    const metadata = document.querySelector('#paper-demo-1 .paper-meta');
+    expect(metadata).toHaveTextContent('林晓, 学习科学, 2024');
+    expect(metadata).not.toHaveTextContent('陈默');
+    expect(metadata?.querySelector('strong.paper-journal')).toHaveTextContent('学习科学');
+    expect(metadata?.querySelector('strong.paper-journal')).toHaveAttribute('title', '学习科学研究');
+  });
+
   it('展示本地文库并执行关键词检索', async () => {
     render(<App />);
     expect(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？')).toBeInTheDocument();
@@ -15,19 +73,74 @@ afterEach(() => vi.restoreAllMocks());
     await waitFor(() => expect(screen.queryByText('生成式人工智能如何促进大学生的自我调节学习？')).not.toBeInTheDocument());
   });
 
-  it('紧凑与舒展视图显示文字标签和明确的选中状态', async () => {
+  it('舒展展开当前全部阅读区，紧凑折叠全部阅读区并使用 44px 单行布局', async () => {
     render(<App />);
     const compact = await screen.findByRole('button', { name: '紧凑视图' });
     const comfortable = screen.getByRole('button', { name: '舒展视图' });
     expect(compact).toHaveTextContent('紧凑');
     expect(comfortable).toHaveTextContent('舒展');
     expect(compact).toHaveAttribute('aria-pressed', 'true');
+    expect(document.querySelector('.paper-row')).toHaveClass('compact');
+    expect((document.querySelector('.paper-row')?.parentElement as HTMLElement).style.height).toBe('44px');
     fireEvent.click(comfortable);
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(demoPapers.length));
     expect(comfortable).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('.paper-row')).toHaveClass('comfortable');
     fireEvent.click(compact);
     expect(compact).toHaveAttribute('aria-pressed', 'true');
-    expect(document.querySelector('.paper-row')).not.toHaveClass('comfortable');
+    expect(document.querySelectorAll('.reader-inline')).toHaveLength(0);
+    expect(document.querySelector('.paper-row')).toHaveClass('compact');
+  });
+
+  it('紧凑模式下字号按钮同样实时调整列表文字', async () => {
+    render(<App />);
+    await screen.findByRole('button', { name: '紧凑视图' });
+    const panel = document.querySelector('.library-panel') as HTMLElement;
+    expect(panel.style.getPropertyValue('--reader-font-size')).toBe('12px');
+    fireEvent.click(screen.getByRole('button', { name: '增大阅读字号' }));
+    expect(panel.style.getPropertyValue('--reader-font-size')).toBe('13px');
+    expect(document.querySelector('.paper-row')).toHaveClass('compact');
+    fireEvent.click(screen.getByRole('button', { name: '减小阅读字号' }));
+    expect(panel.style.getPropertyValue('--reader-font-size')).toBe('12px');
+  });
+
+  it('字号按钮实时调整全部打开的阅读正文', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    await screen.findByRole('heading', { name: '基本信息提取', level: 2 });
+    const reader = document.querySelector('.reader-inline') as HTMLElement;
+    expect(reader.style.getPropertyValue('--reader-font-size')).toBe('12px');
+    fireEvent.click(screen.getByRole('button', { name: '增大阅读字号' }));
+    expect(reader.style.getPropertyValue('--reader-font-size')).toBe('13px');
+    expect(screen.getByText('13px')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '减小阅读字号' }));
+    expect(reader.style.getPropertyValue('--reader-font-size')).toBe('12px');
+  });
+
+  it('配图默认加宽并可通过拖拽手柄的键盘操作调整', async () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1140);
+    const detail = demoDetail(demoPapers[0]);
+    detail.interpretation!.figures = [{ path: 'figure-1.png', label: '图 1', caption: '实验流程与结果对比' }];
+    vi.spyOn(api, 'detail').mockResolvedValue(detail);
+    render(<App />);
+    fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    const handle = await screen.findByRole('separator', { name: '调整论文配图宽度' });
+    const layout = document.querySelector('.article-layout') as HTMLElement;
+    expect(handle).toHaveAttribute('aria-valuenow', '420');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('420px');
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' });
+    expect(handle).toHaveAttribute('aria-valuenow', '436');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('436px');
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+    expect(handle).toHaveAttribute('aria-valuenow', '420');
+  });
+
+  it('全部展开后可独立收起其中一篇，其余阅读区保持打开', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '舒展视图' }));
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(demoPapers.length));
+    fireEvent.click(screen.getAllByRole('button', { name: '收起文章' })[1]);
+    expect(document.querySelectorAll('.reader-inline')).toHaveLength(demoPapers.length - 1);
+    expect(screen.getAllByRole('heading', { name: '基本信息提取', level: 2 }).length).toBeGreaterThan(0);
   });
 
   it('打开七段解读并查看局部 Markdown 来源', async () => {
@@ -39,6 +152,46 @@ afterEach(() => vi.restoreAllMocks());
     fireEvent.click(sources[0]);
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
     expect(screen.getByText(/桌面端只返回当前 Markdown 版本/)).toBeInTheDocument();
+  });
+
+  it('单篇展开保持紧凑行内容、滚动位置和工具栏状态不变', async () => {
+    render(<App />);
+    const content = await screen.findByRole('button', { name: /生成式人工智能如何促进大学生的自我调节学习？/ });
+    const originalText = content.textContent;
+    const originalList = document.querySelector<HTMLDivElement>('.virtual-list')!;
+    expect(document.querySelector('.processing-banner')).toBeInTheDocument();
+    fireEvent.scroll(originalList, { target: { scrollTop: 88 } });
+    expect(originalList.scrollTop).toBe(88);
+    const scrollIntoView = vi.mocked(HTMLElement.prototype.scrollIntoView);
+    scrollIntoView.mockClear();
+
+    fireEvent.click(content);
+    await screen.findByRole('heading', { name: '基本信息提取', level: 2 });
+
+    const expandedRow = document.querySelector('#paper-demo-1')!;
+    const expandedList = document.querySelector<HTMLDivElement>('.inline-reading-list.is-compact')!;
+    expect(screen.getByRole('button', { name: '紧凑视图' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '舒展视图' })).toHaveAttribute('aria-pressed', 'false');
+    expect(expandedRow).toHaveClass('compact');
+    expect(expandedRow.querySelector('.paper-content')?.textContent).toBe(originalText);
+    expect(expandedList).toBe(originalList);
+    expect(expandedList.scrollTop).toBe(88);
+    expect(scrollIntoView).not.toHaveBeenCalled();
+    expect(document.querySelector('main')).not.toHaveClass('library-reading');
+    expect(document.querySelector('.processing-banner')).toBeInTheDocument();
+  });
+
+  it('点击同一文献可切换打开与关闭解读', async () => {
+    render(<App />);
+    const trigger = () => screen.getByRole('heading', { name: '生成式人工智能如何促进大学生的自我调节学习？', level: 3 }).closest('button')!;
+    expect(await screen.findByRole('heading', { name: '生成式人工智能如何促进大学生的自我调节学习？', level: 3 })).toBeInTheDocument();
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(trigger());
+    expect(await screen.findByRole('heading', { name: '基本信息提取', level: 2 })).toBeInTheDocument();
+    expect(trigger()).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(trigger());
+    await waitFor(() => expect(screen.queryByRole('heading', { name: '基本信息提取', level: 2 })).not.toBeInTheDocument());
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('在列表内阅读并用快捷键切换到下一篇', async () => {
@@ -91,14 +244,33 @@ afterEach(() => vi.restoreAllMocks());
     await waitFor(() => expect(screen.queryByRole('button', { name: '加入 Zotero Reader' })).not.toBeInTheDocument());
   });
 
-  it('可在设置页安全保存 DeepSeek 密钥并更新连接状态', async () => {
+  it('保存密钥后保留当前配置并可通过眼睛切换可见性', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '设置' }));
     const input = await screen.findByLabelText('DeepSeek API Key');
+    expect(input).toHaveAttribute('type', 'password');
     fireEvent.change(input, { target: { value: 'test-secret-key' } });
     fireEvent.click(screen.getByRole('button', { name: '保存 DeepSeek 密钥' }));
     expect(await screen.findByText('已配置')).toBeInTheDocument();
-    expect(input).toHaveValue('');
+    expect(input).toHaveValue('test-secret-key');
+    expect(input).toHaveAttribute('type', 'password');
+    fireEvent.click(screen.getByRole('button', { name: '显示 DeepSeek 密钥' }));
+    expect(input).toHaveAttribute('type', 'text');
+    fireEvent.click(screen.getByRole('button', { name: '隐藏 DeepSeek 密钥' }));
+    expect(input).toHaveAttribute('type', 'password');
+  });
+
+  it('设置页按指定顺序展示三个服务的当前配置', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '设置' }));
+    expect(await screen.findByLabelText('Zotero 本地 API 地址')).toHaveValue('http://127.0.0.1:23119/api/users/0');
+    expect(document.querySelectorAll('.service-card')).toHaveLength(3);
+    expect([...document.querySelectorAll('.service-card-title strong')].map(element => element.textContent)).toEqual(['Zotero 本地 API', 'Doc2X', 'DeepSeek']);
+    const sections = document.querySelectorAll('.settings-section');
+    expect(sections[0]).toHaveTextContent('服务连接');
+    expect(sections[1]).toHaveTextContent('系统默认提示词');
+    expect(sections[2]).toHaveTextContent('备份与恢复');
+    expect(sections[3]).toHaveTextContent('打开 config.json');
   });
 
   it('设置页展示完整文献解读提示词', async () => {

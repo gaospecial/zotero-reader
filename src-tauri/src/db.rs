@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS items (
  id TEXT PRIMARY KEY, zotero_key TEXT NOT NULL UNIQUE, zotero_version INTEGER NOT NULL DEFAULT 0,
  title TEXT NOT NULL, title_zh TEXT NOT NULL DEFAULT '', one_sentence TEXT NOT NULL DEFAULT '',
  creators_json TEXT NOT NULL DEFAULT '[]', year INTEGER, publication TEXT NOT NULL DEFAULT '',
- abstract_note TEXT NOT NULL DEFAULT '', doi TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '',
+ journal_abbreviation TEXT NOT NULL DEFAULT '', abstract_note TEXT NOT NULL DEFAULT '', doi TEXT NOT NULL DEFAULT '', url TEXT NOT NULL DEFAULT '',
  item_type TEXT NOT NULL DEFAULT 'journalArticle', tags_json TEXT NOT NULL DEFAULT '[]',
  pdf_state TEXT NOT NULL DEFAULT 'unavailable', parse_state TEXT NOT NULL DEFAULT 'not_started',
  ai_state TEXT NOT NULL DEFAULT 'not_started', zotero_state TEXT NOT NULL DEFAULT 'active',
@@ -74,6 +74,10 @@ pub fn open(path: &Path) -> Result<SharedDb> {
         conn.execute("ALTER TABLE collections ADD COLUMN joined INTEGER NOT NULL DEFAULT 0",[])?;
         conn.execute("UPDATE collections SET joined=1 WHERE EXISTS(SELECT 1 FROM item_collections ic WHERE ic.collection_key=collections.key)",[])?;
     }
+    let has_journal_abbreviation=conn.query_row("SELECT COUNT(*) FROM pragma_table_info('items') WHERE name='journal_abbreviation'",[],|row|row.get::<_,i64>(0))?;
+    if has_journal_abbreviation==0{
+        conn.execute("ALTER TABLE items ADD COLUMN journal_abbreviation TEXT NOT NULL DEFAULT ''",[])?;
+    }
     Ok(Arc::new(Mutex::new(conn)))
 }
 
@@ -86,7 +90,7 @@ fn paper_from_row(row: &Row<'_>) -> rusqlite::Result<Paper> {
         id: row.get("id")?, zotero_key: row.get("zotero_key")?, zotero_version: row.get("zotero_version")?,
         title: row.get("title")?, title_zh: row.get("title_zh")?, one_sentence: row.get("one_sentence")?,
         creators: parse_json(row.get::<_, String>("creators_json")?), year: row.get("year")?,
-        publication: row.get("publication")?, abstract_note: row.get("abstract_note")?, doi: row.get("doi")?,
+        publication: row.get("publication")?, journal_abbreviation: row.get("journal_abbreviation")?, abstract_note: row.get("abstract_note")?, doi: row.get("doi")?,
         url: row.get("url")?, item_type: row.get("item_type")?, tags: parse_json(row.get::<_, String>("tags_json")?),
         collections: Vec::new(), pdf_state: row.get("pdf_state")?, parse_state: row.get("parse_state")?,
         ai_state: row.get("ai_state")?, zotero_state: row.get("zotero_state")?, local_state: row.get("local_state")?,
@@ -206,13 +210,13 @@ pub fn mark_collections_joined(db: &SharedDb, keys: &BTreeSet<String>) -> Result
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn upsert_paper(db: &SharedDb, key: &str, version: i64, title: &str, creators: &[String], year: Option<i32>, publication: &str, abstract_note: &str, doi: &str, url: &str, item_type: &str, tags: &[String], trashed: bool) -> Result<String> {
+pub fn upsert_paper(db: &SharedDb, key: &str, version: i64, title: &str, creators: &[String], year: Option<i32>, publication: &str, journal_abbreviation: &str, abstract_note: &str, doi: &str, url: &str, item_type: &str, tags: &[String], trashed: bool) -> Result<String> {
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
     let now = Utc::now().to_rfc3339();
-    conn.execute(r#"INSERT INTO items(id,zotero_key,zotero_version,title,creators_json,year,publication,abstract_note,doi,url,item_type,tags_json,zotero_state,updated_at,imported_at)
- VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?14)
- ON CONFLICT(zotero_key) DO UPDATE SET zotero_version=excluded.zotero_version,title=excluded.title,creators_json=excluded.creators_json,year=excluded.year,publication=excluded.publication,abstract_note=excluded.abstract_note,doi=excluded.doi,url=excluded.url,item_type=excluded.item_type,tags_json=excluded.tags_json,zotero_state=excluded.zotero_state,updated_at=excluded.updated_at"#,
- params![uuid::Uuid::new_v4().to_string(),key,version,title,serde_json::to_string(creators)?,year,publication,abstract_note,doi,url,item_type,serde_json::to_string(tags)?,if trashed{"trashed"}else{"active"},now])?;
+    conn.execute(r#"INSERT INTO items(id,zotero_key,zotero_version,title,creators_json,year,publication,journal_abbreviation,abstract_note,doi,url,item_type,tags_json,zotero_state,updated_at,imported_at)
+ VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?15)
+ ON CONFLICT(zotero_key) DO UPDATE SET zotero_version=excluded.zotero_version,title=excluded.title,creators_json=excluded.creators_json,year=excluded.year,publication=excluded.publication,journal_abbreviation=excluded.journal_abbreviation,abstract_note=excluded.abstract_note,doi=excluded.doi,url=excluded.url,item_type=excluded.item_type,tags_json=excluded.tags_json,zotero_state=excluded.zotero_state,updated_at=excluded.updated_at"#,
+ params![uuid::Uuid::new_v4().to_string(),key,version,title,serde_json::to_string(creators)?,year,publication,journal_abbreviation,abstract_note,doi,url,item_type,serde_json::to_string(tags)?,if trashed{"trashed"}else{"active"},now])?;
     Ok(conn.query_row("SELECT id FROM items WHERE zotero_key=?1",[key],|r|r.get(0))?)
 }
 
@@ -361,9 +365,9 @@ mod tests {
     #[test]
     fn sync_is_idempotent_and_preserves_ai_fields() {
         let db = open(Path::new(":memory:")).unwrap();
-        let id = upsert_paper(&db,"ABC",1,"Old",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id = upsert_paper(&db,"ABC",1,"Old",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         save_interpretation(&db,&id,None,"中文标题","一句话",&[],&[],"test").unwrap();
-        let same = upsert_paper(&db,"ABC",2,"New",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let same = upsert_paper(&db,"ABC",2,"New",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         assert_eq!(id,same);
         let p = get_paper(&db,&id).unwrap();
         assert_eq!(p.title,"New"); assert_eq!(p.title_zh,"中文标题"); assert_eq!(p.one_sentence,"一句话");
@@ -371,7 +375,7 @@ mod tests {
     #[test]
     fn regenerating_interpretation_preserves_read_state(){
         let db=open(Path::new(":memory:")).unwrap();
-        let id=upsert_paper(&db,"READ",1,"Paper",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id=upsert_paper(&db,"READ",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         set_state(&db,&id,"read_state","read").unwrap();
         save_interpretation(&db,&id,None,"中文标题","一句话",&[],&[],"test").unwrap();
         assert_eq!(get_paper(&db,&id).unwrap().read_state,"read");
@@ -380,7 +384,7 @@ mod tests {
     #[test]
     fn notes_are_searchable() {
         let db = open(Path::new(":memory:")).unwrap();
-        let id = upsert_paper(&db,"N1",1,"Paper",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id = upsert_paper(&db,"N1",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         save_note(&db,&id,"独特的研究方法").unwrap();
         assert_eq!(list_papers(&db,LibraryQuery{search:Some("研究方法".into()),collection:None,status:None,view:None,sort:None}).unwrap().len(),1);
     }
@@ -389,7 +393,7 @@ mod tests {
     fn joined_state_is_explicit_even_for_empty_collections(){
         let db=open(Path::new(":memory:")).unwrap();
         for key in ["JOINED","RELATED"]{upsert_collection(&db,&Collection{key:key.into(),name:key.into(),parent_key:None,item_count:0,joined:false},0).unwrap();}
-        let id=upsert_paper(&db,"RELATED-PAPER",1,"Paper",&[],None,"","","","","journalArticle",&[],false).unwrap();
+        let id=upsert_paper(&db,"RELATED-PAPER",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         set_item_collections(&db,&id,&["RELATED".into()]).unwrap();
         mark_collections_joined(&db,&BTreeSet::from(["JOINED".into()])).unwrap();
         let collections=list_collections(&db).unwrap();

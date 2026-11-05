@@ -55,6 +55,7 @@ pub struct Paper {
     pub creators: Vec<String>,
     pub year: Option<i32>,
     pub publication: String,
+    pub journal_abbreviation: String,
     pub abstract_note: String,
     pub doi: String,
     pub url: String,
@@ -138,6 +139,14 @@ pub struct ServiceStatus {
     pub deepseek_configured: bool,
     pub doc2x_configured: bool,
     pub demo_mode: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServiceConfiguration {
+    pub zotero_base_url: String,
+    pub deepseek_api_key: String,
+    pub doc2x_api_key: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

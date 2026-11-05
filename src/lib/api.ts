@@ -1,13 +1,14 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { demoAnswer, demoBootstrap, demoCollections, demoDetail } from './demo';
-import type { Attachment, Bootstrap, ImportPreview, ImportResult, LibraryQuery, Note, Paper, PaperDetail, PdfChoice, QaEvent, QaMessage } from '../types';
+import type { Attachment, Bootstrap, ImportPreview, ImportResult, LibraryQuery, Note, Paper, PaperDetail, PdfChoice, QaEvent, QaMessage, ServiceConfiguration } from '../types';
 
 export const isDesktop = '__TAURI_INTERNALS__' in window;
 const delay = (ms = 250) => new Promise(resolve => setTimeout(resolve, ms));
 const localPapers = structuredClone(demoBootstrap.papers);
 const localNotes = new Map<string, string>();
 const localQa = new Map<string, QaMessage[]>();
+const localServiceConfig: ServiceConfiguration = { zoteroBaseUrl: 'http://127.0.0.1:23119/api/users/0', deepseekApiKey: '', doc2xApiKey: '' };
 
 async function command<T>(name: string, args?: Record<string, unknown>, demo?: () => T | Promise<T>): Promise<T> {
   if (isDesktop) return invoke<T>(name, args);
@@ -62,7 +63,11 @@ export const api = {
   restoreBackup: (path: string) => command<void>('restore_backup', { path }),
   openPdf: (itemKey: string) => command<void>('open_zotero_pdf', { itemKey }, () => undefined),
   openConfig: () => command<string>('open_config_file', undefined, () => '演示模式：桌面端将打开应用数据目录中的 config.json'),
-  setApiKey: (service: 'deepseek' | 'doc2x', key: string) => command<void>('set_api_key', { service, key }, () => { if (service === 'deepseek') demoBootstrap.services.deepseekConfigured = true; else demoBootstrap.services.doc2xConfigured = true; }),
+  serviceConfiguration: () => command<ServiceConfiguration>('service_configuration', undefined, () => ({ ...localServiceConfig })),
+  setApiKey: (service: 'deepseek' | 'doc2x', key: string) => command<void>('set_api_key', { service, key }, () => {
+    if (service === 'deepseek') { demoBootstrap.services.deepseekConfigured = true; localServiceConfig.deepseekApiKey = key; }
+    else { demoBootstrap.services.doc2xConfigured = true; localServiceConfig.doc2xApiKey = key; }
+  }),
 };
 
 export async function onQaEvent(handler: (event: QaEvent) => void) {

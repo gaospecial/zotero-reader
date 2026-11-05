@@ -30,7 +30,7 @@ export const demoCollections: Collection[] = [
 const sections = (): Section[] => Object.entries(sectionText).map(([title, content]) => ({ title, content }));
 export const demoPapers: Paper[] = titles.map(([titleZh, title, oneSentence], index) => ({
   id: `demo-${index + 1}`, zoteroKey: `DEMO${index + 1}`, zoteroVersion: 1, title, titleZh, oneSentence,
-  creators: [['林晓', '陈默'], ['周研', '许舟'], ['高宁', '韩青']][index % 3], year: 2024 - (index % 3), publication: ['学习科学研究', '教育技术学报', '开放教育研究'][index % 3],
+  creators: [['林晓', '陈默'], ['周研', '许舟'], ['高宁', '韩青']][index % 3], year: 2024 - (index % 3), publication: ['学习科学研究', '教育技术学报', '开放教育研究'][index % 3], journalAbbreviation: ['学习科学', '教育技术', '开放教育'][index % 3],
   abstractNote: oneSentence, doi: `10.0000/demo.${index + 1}`, url: '', itemType: 'journalArticle', tags: [['AI 反馈', '自我调节'], ['学习分析', '实证研究'], ['教学策略']][index % 3],
   collections: [index < 4 ? 'ai' : 'learning'], pdfState: index === 6 ? 'unavailable' : 'available', parseState: index === 6 ? 'not_started' : 'succeeded',
   aiState: index === 6 ? 'not_started' : index === 7 ? 'generating' : 'succeeded', zoteroState: 'active', localState: 'active', readState: index % 3 === 0 ? 'unread' : index % 3 === 1 ? 'reading' : 'read',

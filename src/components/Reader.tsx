@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight, BookOpenCheck, Check, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, FileText, Highlighter, Image as ImageIcon, LoaderCircle, MessageCircle, NotebookPen, RefreshCw, Share2, Sparkles, Star, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -12,38 +13,66 @@ import './Reader.css';
 
 interface ReaderProps {
   detail: PaperDetail;
+  active?: boolean;
+  fontSize?: number;
   onBack: () => void;
   onTrash: () => void;
   onMemo: () => void;
   onChanged: () => void;
   onRead: () => void;
+  starred: boolean;
+  onToggleStar: () => void;
   onPrevious?: () => void;
   onNext?: () => void;
   position?: { current: number; total: number };
   notify: (message: string, tone?: 'success' | 'error' | 'info') => void;
 }
 
-export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onRead, onPrevious, onNext, position, notify }: ReaderProps) {
+export default function Reader({ detail, active = true, fontSize = 12, onBack, onTrash, onMemo, onChanged, onRead, starred, onToggleStar, onPrevious, onNext, position, notify }: ReaderProps) {
   const [figureIndex, setFigureIndex] = useState(0);
   const [figureUrl, setFigureUrl] = useState('');
+  const [figureWidth, setFigureWidth] = useState(420);
   const [regenerating, setRegenerating] = useState(false);
   const [source, setSource] = useState<{ title: string; content: string } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
-  const [starred, setStarred] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
+  const figureResize = useRef<{ startX: number; startWidth: number } | null>(null);
   const metadataOnly = detail.pdfState === 'unavailable';
   const interpretation = metadataOnly ? null : detail.interpretation;
   const figure = interpretation?.figures[figureIndex];
   const title = metadataOnly ? detail.title : interpretation?.titleZh || detail.titleZh || detail.title;
   const readingMinutes = useMemo(() => Math.max(1, Math.ceil((interpretation?.sections.reduce((total, section) => total + section.content.length, 0) ?? 0) / 450)), [interpretation]);
 
+  const boundFigureWidth = (width: number) => {
+    const available = articleRef.current?.clientWidth ?? 1140;
+    const maximum = Math.max(280, Math.min(720, available - 420));
+    return Math.round(Math.max(280, Math.min(maximum, width)));
+  };
+  const startFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    figureResize.current = { startX: event.clientX, startWidth: figureWidth };
+  };
+  const moveFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!figureResize.current) return;
+    setFigureWidth(boundFigureWidth(figureResize.current.startWidth + figureResize.current.startX - event.clientX));
+  };
+  const endFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    figureResize.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const resizeFigureWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Home') return setFigureWidth(boundFigureWidth(280));
+    if (event.key === 'End') return setFigureWidth(boundFigureWidth(720));
+    setFigureWidth(boundFigureWidth(figureWidth + (event.key === 'ArrowLeft' ? 16 : -16)));
+  };
+
   useEffect(() => {
     setFigureIndex(0);
     setSource(null);
     setQaOpen(false);
-    try { setStarred(window.localStorage.getItem(`reader-starred-${detail.id}`) === 'true'); } catch { setStarred(false); }
-    const timer = window.setTimeout(() => document.getElementById(`paper-${detail.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
-    return () => window.clearTimeout(timer);
   }, [detail.id]);
 
   useEffect(() => {
@@ -52,6 +81,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
   }, [figure, detail.id, interpretation?.markdownVersionId]);
 
   useEffect(() => {
+    if (!active) return;
     const handler = (event: KeyboardEvent) => {
       const target = event.target;
       if ((target instanceof HTMLElement && target.matches('input, textarea, select, [contenteditable="true"]')) || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -62,7 +92,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onBack, onNext, onPrevious, onRead, qaOpen]);
+  }, [active, onBack, onNext, onPrevious, onRead, qaOpen]);
 
   const regenerate = async () => {
     setRegenerating(true);
@@ -77,13 +107,6 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
     catch (error) { notify(String(error), 'error'); }
   };
 
-  const toggleStar = () => {
-    const next = !starred;
-    setStarred(next);
-    try { window.localStorage.setItem(`reader-starred-${detail.id}`, String(next)); } catch { /* The visual state still works when storage is unavailable. */ }
-    notify(next ? '已添加星标。' : '已取消星标。', 'success');
-  };
-
   const share = async () => {
     const url = detail.url || (detail.doi ? `https://doi.org/${detail.doi}` : '');
     const text = metadataOnly ? detail.abstractNote || title : detail.oneSentence || title;
@@ -93,7 +116,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
     } catch (error) { if ((error as Error).name !== 'AbortError') notify(String(error), 'error'); }
   };
 
-  return <section className="reader-inline" aria-label="文章详情阅读页">
+  return <section className="reader-inline" aria-label="文章详情阅读页" style={{ '--reader-font-size': `${fontSize}px` } as CSSProperties}>
     <article className="article-reader" ref={articleRef}>
       <header className="reader-inline-toolbar">
         <div className="reader-mode-label"><BookOpenCheck size={15} /><strong>{metadataOnly ? '文献信息' : 'AI 解读'}</strong>{position && <span>{position.current} / {position.total}</span>}</div>
@@ -107,7 +130,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
         </div>
       </header>
 
-      <div className={`article-layout ${figure ? 'has-figure' : ''}`}>
+      <div className={`article-layout ${figure ? 'has-figure' : ''}`} style={{ '--figure-width': `${figureWidth}px` } as CSSProperties}>
         <div className="article-main">
           <header className="article-header">
             <div className="article-kicker"><span className="article-kicker-dot" /><span>{detail.publication || 'ZOTERO READER'}</span><span className="article-kicker-label">{metadataOnly ? 'ZOTERO METADATA' : <><Sparkles size={11} />AI STRUCTURED READING</>}</span></div>
@@ -142,7 +165,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
 
           <footer className="article-action-bar">
             <div>
-              <button className={starred ? 'active' : ''} onClick={toggleStar} aria-pressed={starred}><Star size={15} fill={starred ? 'currentColor' : 'none'} />{starred ? '已加星标' : '添加星标'}</button>
+              <button className={starred ? 'active' : ''} onClick={onToggleStar} aria-pressed={starred}><Star size={15} fill={starred ? 'currentColor' : 'none'} />{starred ? '已加星标' : '添加星标'}</button>
               <button onClick={onRead}><Check size={15} />{detail.readState === 'read' ? '标为未读' : '标为已读'}</button>
               <button onClick={share}><Share2 size={15} />分享</button>
               <button onClick={onMemo}><NotebookPen size={15} />备忘</button>
@@ -154,6 +177,7 @@ export default function Reader({ detail, onBack, onTrash, onMemo, onChanged, onR
         </div>
 
         {figure && <aside className="article-figure" aria-label="论文配图">
+          <div className="figure-resize-handle" role="separator" aria-label="调整论文配图宽度" aria-orientation="vertical" aria-valuemin={280} aria-valuemax={720} aria-valuenow={figureWidth} aria-valuetext={`${figureWidth} 像素`} tabIndex={0} onPointerDown={startFigureResize} onPointerMove={moveFigureResize} onPointerUp={endFigureResize} onPointerCancel={endFigureResize} onKeyDown={resizeFigureWithKeyboard}><span /></div>
           <div className="article-figure-top"><span>{figure.label || 'FIGURE'}</span><span>{figureIndex + 1} / {interpretation?.figures.length}</span></div>
           <div className="article-figure-stage">{figureUrl ? <img src={figureUrl} alt={figure.caption} /> : <div className="figure-placeholder"><ImageIcon size={28} /><span>正在读取论文图片</span></div>}
             {interpretation && interpretation.figures.length > 1 && <><button className="carousel-prev" disabled={figureIndex === 0} onClick={() => setFigureIndex(index => index - 1)} aria-label="上一张图片"><ChevronLeft size={18} /></button><button className="carousel-next" disabled={figureIndex === interpretation.figures.length - 1} onClick={() => setFigureIndex(index => index + 1)} aria-label="下一张图片"><ChevronRight size={18} /></button></>}
