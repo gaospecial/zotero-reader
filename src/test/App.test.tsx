@@ -55,6 +55,34 @@ describe('Zotero Reader 工作台', () => {
     expect(starNavigation).not.toHaveTextContent('1');
   });
 
+  it('打开未读文献后列表与侧栏计数同步减少', async () => {
+    const papers = demoPapers.filter(paper => paper.readState === 'unread').map(paper => ({ ...paper }));
+    const base = await api.bootstrap();
+    vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({
+      ...base,
+      papers,
+      stats: { ...base.stats, unread: papers.filter(paper => paper.localState === 'active' && paper.readState === 'unread').length },
+    }));
+    vi.spyOn(api, 'listLibrary').mockImplementation(async query =>
+      query.status === 'unread' ? papers.filter(paper => paper.readState === 'unread') : papers
+    );
+    vi.spyOn(api, 'detail').mockImplementation(async id => demoDetail(papers.find(paper => paper.id === id)!));
+    const setRead = vi.spyOn(api, 'setRead').mockImplementation(async (id, readState) => {
+      const paper = papers.find(item => item.id === id);
+      if (paper) paper.readState = readState as typeof paper.readState;
+    });
+
+    render(<App />);
+    const unreadNavigation = document.querySelectorAll('.primary-nav button')[1];
+    fireEvent.click(unreadNavigation);
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(3));
+    expect(unreadNavigation).toHaveTextContent('未读3');
+    fireEvent.click(document.querySelector('#paper-demo-1 .paper-content')!);
+    await waitFor(() => expect(setRead).toHaveBeenCalledWith('demo-1', 'reading'));
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
+    expect(unreadNavigation).toHaveTextContent('未读2');
+  });
+
   it('文献信息显示第一作者、粗斜体期刊缩写和年份', async () => {
     render(<App />);
     await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
@@ -239,6 +267,34 @@ describe('Zotero Reader 工作台', () => {
     expect(content(1)).toHaveAttribute('aria-expanded', 'false');
     expect(content(2)).toHaveAttribute('aria-expanded', 'true');
     expect(document.querySelector('#paper-demo-2')?.parentElement?.querySelector('.reader-inline')).toBeInTheDocument();
+  });
+
+  it('星标页收起第二篇时保留文献并锁定标题位置', async () => {
+    render(<App />);
+    const stars = await screen.findAllByRole('button', { name: '添加星标' });
+    fireEvent.click(stars[0]);
+    fireEvent.click(stars[1]);
+    fireEvent.click(screen.getByRole('button', { name: '星标' }));
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
+    fireEvent.click(document.querySelector('#paper-demo-1 .paper-content')!);
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(1));
+    fireEvent.click(document.querySelector('#paper-demo-2 .paper-content')!);
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(2));
+    const list = document.querySelector<HTMLDivElement>('.inline-reading-list')!;
+    fireEvent.scroll(list, { target: { scrollTop: 800 } });
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    const rect = (top: number, height = 44) => ({ x: 0, y: top, top, left: 0, width: 800, right: 800, height, bottom: top + height, toJSON: () => ({}) }) as DOMRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('virtual-list')) return rect(200, 600);
+      if (this.id === 'paper-demo-2') return rect(this.querySelector('.paper-content')?.getAttribute('aria-expanded') === 'true' ? 500 : 900);
+      return originalRect.call(this);
+    });
+
+    fireEvent.click(document.querySelectorAll('.reader-inline')[1].querySelector('[aria-label="收起文章"]')!);
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(1));
+    expect(list.scrollTop).toBe(1200);
+    expect(document.querySelectorAll('.paper-row')).toHaveLength(2);
+    expect(document.querySelector('#paper-demo-2 .star-marker')).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('在列表内阅读并用快捷键切换到下一篇', async () => {

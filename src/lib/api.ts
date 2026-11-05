@@ -17,7 +17,11 @@ async function command<T>(name: string, args?: Record<string, unknown>, demo?: (
 }
 
 export const api = {
-  bootstrap: () => command<Bootstrap>('get_bootstrap', undefined, () => structuredClone(demoBootstrap)),
+  bootstrap: () => command<Bootstrap>('get_bootstrap', undefined, () => {
+    const base = structuredClone(demoBootstrap);
+    const papers = structuredClone(localPapers);
+    return { ...base, papers, stats: { ...base.stats, unread: papers.filter(paper => paper.localState === 'active' && paper.readState === 'unread').length } };
+  }),
   connect: () => command<boolean>('connect_zotero', undefined, async () => { await delay(); return true; }),
   listLibrary: (query: LibraryQuery) => command<Paper[]>('list_library', { query }, () => {
     const search = query.search?.toLowerCase() ?? '';

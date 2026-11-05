@@ -49,7 +49,7 @@ export default function PaperList({ papers, selectedId, readerDetails, expandedI
   const hasExpandedReaders = filtered.some(paper => expandedIds.includes(paper.id));
   const comfortable = expandAllMode && hasExpandedReaders;
   const listRef = useRef<HTMLDivElement>(null);
-  const expandAnchorRef = useRef<{ id: string; top: number } | null>(null);
+  const readerAnchorRef = useRef<{ id: string; top: number; action: 'open' | 'close' } | null>(null);
   const rowHeight = 44;
   const viewportHeight = 650;
   const start = Math.max(0, Math.floor(scrollTop / rowHeight) - 4);
@@ -58,32 +58,39 @@ export default function PaperList({ papers, selectedId, readerDetails, expandedI
     if (listRef.current) listRef.current.scrollTop = scrollTop;
   }, [hasExpandedReaders, comfortable]);
   useLayoutEffect(() => {
-    const anchor = expandAnchorRef.current;
+    const anchor = readerAnchorRef.current;
     const list = listRef.current;
-    if (!anchor || !list || anchor.id !== selectedId) return;
+    if (!anchor || !list || (anchor.action === 'open' && anchor.id !== selectedId)) return;
     const target = document.getElementById(`paper-${anchor.id}`);
     if (!target) return;
     list.scrollTop += target.getBoundingClientRect().top - anchor.top;
-    expandAnchorRef.current = null;
-  }, [selectedId, hasExpandedReaders, comfortable]);
+    readerAnchorRef.current = null;
+  }, [selectedId, expandedIds, hasExpandedReaders, comfortable]);
   const isStarred = (paper: Paper) => starredIds[paper.id] ?? readStoredStar(paper.id);
-  const openReader = (paper: Paper) => {
+  const captureReaderAnchor = (paper: Paper, action: 'open' | 'close') => {
     const list = listRef.current;
     const target = document.getElementById(`paper-${paper.id}`);
     if (list && target) {
       const listRect = list.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
       const fullyVisible = targetRect.top >= listRect.top && targetRect.bottom <= listRect.bottom;
-      expandAnchorRef.current = { id: paper.id, top: fullyVisible ? targetRect.top : listRect.top };
+      readerAnchorRef.current = { id: paper.id, top: fullyVisible ? targetRect.top : listRect.top, action };
     }
+  };
+  const openReader = (paper: Paper) => {
+    captureReaderAnchor(paper, 'open');
     onOpen(paper, expandAllMode);
   };
-  const row = (paper: Paper) => <PaperRow paper={paper} selected={expandedIds.includes(paper.id)} compact={!comfortable} trash={trash} starred={isStarred(paper)} onOpen={() => expandedIds.includes(paper.id) ? onCloseReader(paper.id) : openReader(paper)} onTrash={() => onTrash(paper.id)} onRestore={() => onRestore(paper.id)} onStar={() => onToggleStar(paper)} />;
+  const closeReader = (paper: Paper) => {
+    captureReaderAnchor(paper, 'close');
+    onCloseReader(paper.id);
+  };
+  const row = (paper: Paper) => <PaperRow paper={paper} selected={expandedIds.includes(paper.id)} compact={!comfortable} trash={trash} starred={isStarred(paper)} onOpen={() => expandedIds.includes(paper.id) ? closeReader(paper) : openReader(paper)} onTrash={() => onTrash(paper.id)} onRestore={() => onRestore(paper.id)} onStar={() => onToggleStar(paper)} />;
   const expandedReader = (paper: Paper) => {
     const detail = readerDetails[paper.id];
     if (!detail || !expandedIds.includes(paper.id)) return null;
     const index = filtered.findIndex(item => item.id === paper.id);
-    return <Reader key={detail.id} detail={detail} active={paper.id === selectedId} fontSize={readerFontSize} starred={isStarred(paper)} onToggleStar={() => onToggleStar(paper)} onBack={() => onCloseReader(paper.id)} onTrash={() => onTrash(paper.id)} onMemo={() => onMemo(detail)} onChanged={onChanged} onRead={() => onRead(detail)} onPrevious={index > 0 ? () => openReader(filtered[index - 1]) : undefined} onNext={index < filtered.length - 1 ? () => openReader(filtered[index + 1]) : undefined} position={{ current: index + 1, total: filtered.length }} notify={notify} />;
+    return <Reader key={detail.id} detail={detail} active={paper.id === selectedId} fontSize={readerFontSize} starred={isStarred(paper)} onToggleStar={() => onToggleStar(paper)} onBack={() => closeReader(paper)} onTrash={() => onTrash(paper.id)} onMemo={() => onMemo(detail)} onChanged={onChanged} onRead={() => onRead(detail)} onPrevious={index > 0 ? () => openReader(filtered[index - 1]) : undefined} onNext={index < filtered.length - 1 ? () => openReader(filtered[index + 1]) : undefined} position={{ current: index + 1, total: filtered.length }} notify={notify} />;
   };
   return <section className={`library-panel ${hasExpandedReaders ? 'is-reading' : ''} ${comfortable ? 'is-comfortable' : ''}`} style={{ '--reader-font-size': `${readerFontSize}px` } as React.CSSProperties}>
     <div className="library-toolbar"><div className="filter-tabs">{['全部', '已读', '未读', '处理失败'].map(name => <button key={name} className={filter === name ? 'active' : ''} onClick={() => { setFilter(name); setScrollTop(0); }}>{name}{name === '全部' && <span>{papers.length}</span>}</button>)}</div><div className="view-tools"><button className="sort-button" onClick={() => setSort(sort === '最近更新' ? '标题排序' : '最近更新')}><ArrowUpDown size={14} />{sort}<ChevronDown size={12} /></button><span className="tool-divider" /><button className={!comfortable ? 'active' : ''} onClick={onCollapseAll} aria-label="紧凑视图" aria-pressed={!comfortable} title="折叠全部阅读区"><Rows3 size={16} /><span>紧凑</span></button><button className={comfortable ? 'active' : ''} onClick={() => onExpandAll(filtered)} aria-label="舒展视图" aria-pressed={comfortable} title="展开当前筛选结果的全部阅读区"><Grid2X2 size={15} /><span>舒展</span></button><span className="tool-divider" /><button onClick={() => setReaderFontSize(size => Math.max(10, size - 1))} disabled={readerFontSize === 10} aria-label="减小阅读字号" title={`减小正文字号（当前 ${readerFontSize}px）`}><Minus size={12} /><span>A</span></button><span className="reader-font-size-value" aria-live="polite">{readerFontSize}px</span><button onClick={() => setReaderFontSize(size => Math.min(22, size + 1))} disabled={readerFontSize === 22} aria-label="增大阅读字号" title={`增大正文字号（当前 ${readerFontSize}px）`}><Plus size={12} /><span>A</span></button></div></div>

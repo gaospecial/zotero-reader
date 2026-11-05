@@ -602,6 +602,11 @@
 
 .inline-reading-list {
   overflow-anchor: none;
+  padding-bottom: max(44px, calc(100vh - 284px));
+}
+
+.library-reading .inline-reading-list {
+  padding-bottom: max(46px, calc(100vh - 244px));
 }
 
 @keyframes reader-unfold {

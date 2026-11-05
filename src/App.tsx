@@ -75,7 +75,10 @@ export default function App() {
       setExpandedIds(current => [...new Set([...current, id])]);
       setSelected(detail);
       setView('reader');
-      if (detail.readState === 'unread') await api.setRead(id, 'reading');
+      if (detail.readState === 'unread') {
+        await api.setRead(id, 'reading');
+        await refresh();
+      }
     } catch (error) { notify(String(error), 'error'); }
   };
   const collapseAll = () => {
