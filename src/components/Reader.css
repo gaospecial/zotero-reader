@@ -600,9 +600,13 @@
   background: #f3f0eb;
 }
 
+.inline-reading-list {
+  overflow-anchor: none;
+}
+
 @keyframes reader-unfold {
-  from { opacity: 0; transform: translateY(-3px); }
-  to { opacity: 1; transform: none; }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes qa-drawer-in {

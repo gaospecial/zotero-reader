@@ -67,14 +67,12 @@ export default function App() {
   useEffect(() => { let dispose: (() => void) | undefined; onProgress(() => { void refreshCurrent(); }).then(fn => { dispose = fn; }); return () => dispose?.(); }, [refreshCurrent]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector<HTMLInputElement>('.search-box input')?.focus(); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
 
-  const openPaper = async (paper: Paper | string, additive = false) => {
+  const openPaper = async (paper: Paper | string) => {
     const id = typeof paper === 'string' ? paper : paper.id;
     try {
       const detail = await api.detail(id);
-      const keepExpanded = additive && expandAllMode;
-      setReaderDetails(current => keepExpanded ? { ...current, [id]: detail } : { [id]: detail });
-      setExpandedIds(current => keepExpanded ? [...new Set([...current, id])] : [id]);
-      setExpandAllMode(keepExpanded);
+      setReaderDetails(current => ({ ...current, [id]: detail }));
+      setExpandedIds(current => [...new Set([...current, id])]);
       setSelected(detail);
       setView('reader');
       if (detail.readState === 'unread') await api.setRead(id, 'reading');

@@ -22,7 +22,7 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     const open = expanded.has(item.key);
     const busy = syncingCollection === item.key;
     return <div key={item.key}>
-      <div className={`tree-row ${collection === item.key && view === 'library' ? 'active' : ''}`} style={{ paddingLeft: 12 + depth * 16 }} onContextMenu={event => { if (!item.joined) return; event.preventDefault(); setMenu({ key: item.key, x: Math.min(event.clientX, window.innerWidth - 190), y: Math.min(event.clientY, window.innerHeight - 58) }); }}>
+      <div className={`tree-row ${collection === item.key && (view === 'library' || view === 'reader') ? 'active' : ''}`} style={{ paddingLeft: 12 + depth * 16 }} onContextMenu={event => { if (!item.joined) return; event.preventDefault(); setMenu({ key: item.key, x: Math.min(event.clientX, window.innerWidth - 190), y: Math.min(event.clientY, window.innerHeight - 58) }); }}>
         {children.length ? <button className="tree-toggle" onClick={() => setExpanded(previous => { const next = new Set(previous); if (next.has(item.key)) next.delete(item.key); else next.add(item.key); return next; })} aria-label={open ? '折叠分类' : '展开分类'}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</button> : <span className="tree-spacer" />}
         <button className="tree-main" aria-haspopup={item.joined ? 'menu' : undefined} onClick={() => { onCollection(item.key); onView('library'); }}>{collection === item.key ? <FolderOpen size={15} /> : <Folder size={15} />}<span>{item.name}</span>{busy ? <small className="tree-syncing"><LoaderCircle size={11} className="spin" />同步中</small> : <small>{item.itemCount || ''}</small>}</button>
       </div>
@@ -33,9 +33,9 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     <div className="brand"><img className="brand-app-icon" src={appIcon} alt="Zotero Reader 应用图标" /><div><strong>Zotero</strong><span>READER</span></div><span className="brand-version">0.1</span></div>
     <button className="import-button" onClick={onImport}><Import size={16} /><span>导入 Zotero 分类</span><Plus size={15} /></button>
     <nav className="primary-nav" aria-label="主导航">
-      <button className={view === 'library' && collection === 'all' ? 'active' : ''} onClick={() => { onCollection('all'); onView('library'); }}><Library size={17} /><span>全部文献</span><small>{stats.total}</small></button>
-      <button className={view === 'library' && collection === 'unread' ? 'active' : ''} onClick={() => { onCollection('unread'); onView('library'); }}><BookOpen size={17} /><span>未读</span><small>{stats.unread}</small></button>
-      <button className={view === 'library' && collection === 'starred' ? 'active' : ''} onClick={() => { onCollection('starred'); onView('library'); }} aria-label="星标"><Star size={17} fill={view === 'library' && collection === 'starred' ? 'currentColor' : 'none'} /><span>星标</span><small>{starredCount || ''}</small></button>
+      <button className={(view === 'library' || view === 'reader') && collection === 'all' ? 'active' : ''} onClick={() => { onCollection('all'); onView('library'); }}><Library size={17} /><span>全部文献</span><small>{stats.total}</small></button>
+      <button className={(view === 'library' || view === 'reader') && collection === 'unread' ? 'active' : ''} onClick={() => { onCollection('unread'); onView('library'); }}><BookOpen size={17} /><span>未读</span><small>{stats.unread}</small></button>
+      <button className={(view === 'library' || view === 'reader') && collection === 'starred' ? 'active' : ''} onClick={() => { onCollection('starred'); onView('library'); }} aria-label="星标"><Star size={17} fill={(view === 'library' || view === 'reader') && collection === 'starred' ? 'currentColor' : 'none'} /><span>星标</span><small>{starredCount || ''}</small></button>
       <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')}><NotebookPen size={17} /><span>查看备忘</span></button>
       <button className={view === 'trash' ? 'active' : ''} onClick={() => onView('trash')}><Recycle size={17} /><span>回收站</span><small>{stats.trash || ''}</small></button>
     </nav>

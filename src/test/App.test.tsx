@@ -181,6 +181,34 @@ describe('Zotero Reader 工作台', () => {
     expect(document.querySelector('.processing-banner')).toBeInTheDocument();
   });
 
+  it('展开阅读时保留侧栏资源库选中态，避免文字字重跳变', async () => {
+    render(<App />);
+    const allPapers = await screen.findByRole('button', { name: /全部文献/ });
+    expect(allPapers).toHaveClass('active');
+    fireEvent.click(screen.getByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    await screen.findByRole('heading', { name: '基本信息提取', level: 2 });
+    expect(allPapers).toHaveClass('active');
+  });
+
+  it('切换展开文献时锁定目标行位置，阅读区不会向上展开', async () => {
+    render(<App />);
+    fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    await screen.findByRole('heading', { name: '基本信息提取', level: 2 });
+    const list = document.querySelector<HTMLDivElement>('.inline-reading-list')!;
+    fireEvent.scroll(list, { target: { scrollTop: 800 } });
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    const rect = (top: number, height = 44) => ({ x: 0, y: top, top, left: 0, width: 800, right: 800, height, bottom: top + height, toJSON: () => ({}) }) as DOMRect;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('virtual-list')) return rect(200, 600);
+      if (this.id === 'paper-demo-4') return rect(this.classList.contains('selected') ? -100 : 600);
+      return originalRect.call(this);
+    });
+
+    fireEvent.click(document.querySelector('#paper-demo-4 .paper-content')!);
+    await waitFor(() => expect(document.querySelector('#paper-demo-4')).toHaveClass('selected'));
+    expect(list.scrollTop).toBe(100);
+  });
+
   it('点击同一文献可切换打开与关闭解读', async () => {
     render(<App />);
     const trigger = () => screen.getByRole('heading', { name: '生成式人工智能如何促进大学生的自我调节学习？', level: 3 }).closest('button')!;
@@ -192,6 +220,25 @@ describe('Zotero Reader 工作台', () => {
     fireEvent.click(trigger());
     await waitFor(() => expect(screen.queryByRole('heading', { name: '基本信息提取', level: 2 })).not.toBeInTheDocument());
     expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('紧凑模式逐篇累加展开，收起一篇不影响其他阅读区', async () => {
+    render(<App />);
+    await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
+    const content = (id: number) => document.querySelector(`#paper-demo-${id} .paper-content`)!;
+    fireEvent.click(content(1));
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(1));
+    fireEvent.click(content(2));
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(2));
+    expect(content(1)).toHaveAttribute('aria-expanded', 'true');
+    expect(content(2)).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: '紧凑视图' })).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.click(content(1));
+    await waitFor(() => expect(document.querySelectorAll('.reader-inline')).toHaveLength(1));
+    expect(content(1)).toHaveAttribute('aria-expanded', 'false');
+    expect(content(2)).toHaveAttribute('aria-expanded', 'true');
+    expect(document.querySelector('#paper-demo-2')?.parentElement?.querySelector('.reader-inline')).toBeInTheDocument();
   });
 
   it('在列表内阅读并用快捷键切换到下一篇', async () => {
