@@ -1,0 +1,38 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Zotero Reader",
+  "version": "0.1.0",
+  "identifier": "com.zoteroreader.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:7100",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Zotero Reader",
+        "width": 1440,
+        "height": 920,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "center": true,
+        "decorations": true
+      }
+    ],
+    "security": { "csp": "default-src 'self'; img-src 'self' data: asset: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "msi", "nsis"],
+    "macOS": { "signingIdentity": "-" },
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

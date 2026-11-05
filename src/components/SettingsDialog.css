@@ -1,0 +1,73 @@
+.service-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.service-list > .service-config-row {
+  display: block;
+}
+
+.service-config-row .api-key-field {
+  margin: 11px 0 0 40px;
+  padding-top: 10px;
+  border-top: 1px solid #f0ece5;
+}
+
+.api-key-field {
+  display: grid;
+  gap: 6px;
+}
+
+.api-key-field > label {
+  color: #6f675b;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.api-key-input-row {
+  display: flex;
+  gap: 7px;
+}
+
+.api-key-input-row input {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #ddd8ce;
+  border-radius: 4px;
+  background: #fff;
+  color: #454038;
+  font-size: 10px;
+}
+
+.api-key-input-row input:focus {
+  border-color: #bd9389;
+  box-shadow: 0 0 0 3px #f9f1ee;
+}
+
+.api-key-input-row input::placeholder {
+  color: #aaa398;
+}
+
+.api-key-input-row button {
+  min-width: 64px;
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 4px;
+  background: var(--red);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.api-key-input-row button:hover:not(:disabled) {
+  background: var(--red-dark);
+}
+
+.api-key-input-row button svg {
+  width: 13px;
+  height: 13px;
+  vertical-align: middle;
+}
