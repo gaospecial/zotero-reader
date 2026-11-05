@@ -47,7 +47,7 @@
 }
 ```
 
-密钥以明文保存，不回显、不进入数据库或备份。`literatureInterpretation.prompt` 的默认内容与您提供的完整提示词完全一致，可显式覆盖。模型、接口地址、Zotero 路径和提示词在实际操作时重新读取；修改 `zotero.localBaseUrl` 后需重启应用。
+密钥以明文保存，不进入数据库或备份。设置页会载入当前配置，API Key 默认以密码框隐藏，可点击眼睛图标主动查看或再次隐藏；Zotero 本地 API 地址以只读方式展示。`literatureInterpretation.prompt` 的默认内容与您提供的完整提示词完全一致，可显式覆盖。模型、接口地址、Zotero 路径和提示词在实际操作时重新读取；修改 `zotero.localBaseUrl` 后需重启应用。
 
 ### PDF 路径配置
 
@@ -103,15 +103,34 @@ npm run desktop:build -- --no-bundle
 
 # 当前平台的应用与安装包
 npm run desktop:build
+
+# macOS .app（与 CI 桌面构建任务一致）
+npm run desktop:build -- --bundles app
 ```
 
 截图输出到 `artifacts/`。桌面构建产物位于 `src-tauri/target/release/` 与 `src-tauri/target/release/bundle/`。
 
 打包不会把 API Key 嵌入应用。从 Finder 启动应用后，可直接在“设置 → 服务连接”保存密钥；环境变量方式仍然兼容，适合从终端启动的场景。
 
+## 持续集成
+
+GitHub Actions 工作流位于 `.github/workflows/ci.yml`，在以下情况自动运行：
+
+- 向 `main` 分支推送提交；
+- 向 `main` 分支发起或更新 Pull Request；
+- 在 GitHub Actions 页面手动触发。
+
+工作流包含三个任务：
+
+1. **Frontend tests and build**：使用 Node.js 22 安装锁定依赖，运行 React 测试与前端生产构建。
+2. **Rust tests**：在 Ubuntu 上安装 Tauri 所需系统依赖，运行 `cargo test --locked`。
+3. **macOS desktop build**：前两个任务通过后构建 `.app`，并上传名为 `zotero-reader-macos` 的构建工件，保留 7 天。
+
+CI 生成的 macOS 应用使用临时签名且未经 Apple 公证，仅用于开发验证。正式分发仍需配置 Apple 签名与公证凭据。
+
 ## 当前验证范围
 
-- 11 项 React 交互测试通过，覆盖文库、阅读、分类加入与右键同步、密钥设置、重试刷新、无全文条目的纯元信息展示，以及 PDF 不可读时警告并继续导入。
+- 13 项 React 交互测试通过，覆盖文库、阅读、分类加入与右键同步、服务当前配置展示、密钥保存与可见性切换、重试刷新、无全文条目的纯元信息展示，以及 PDF 不可读时警告并继续导入。
 - 32 项 Rust 测试通过，覆盖递归分类、幂等同步、PDF 增量更新、无 PDF 时禁用 AI 队列并隐藏旧解读、失效附件单独跳过且不阻塞其他文献、导入前 `file://` 重定向预检、网络重定向拒绝、VS Code 风格 JSON 配置、一次性环境迁移、Markdown 相对路径读取、模型字段兼容、安全下载与 API 服务配置。
 - Chromium 文库、分类右键菜单、AI 阅读页与无全文元信息页截图检查通过，无页面脚本错误。
 - 前端生产构建、Rust release 构建、macOS `.app` 与 `.dmg` 打包通过。
