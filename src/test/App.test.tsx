@@ -119,6 +119,17 @@ describe('Zotero Reader 工作台', () => {
     expect(document.querySelector('.paper-row')).toHaveClass('compact');
   });
 
+  it('紧凑行仅将未读文献标记为加粗标题状态', async () => {
+    vi.spyOn(api, 'listLibrary').mockResolvedValue(demoPapers.slice(0, 3).map(paper => ({ ...paper })));
+    render(<App />);
+    await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
+    expect(document.querySelector('#paper-demo-1')).toHaveClass('compact', 'unread');
+    expect(document.querySelector('#paper-demo-2')).toHaveClass('compact');
+    expect(document.querySelector('#paper-demo-2')).not.toHaveClass('unread');
+    expect(document.querySelector('#paper-demo-3')).toHaveClass('compact');
+    expect(document.querySelector('#paper-demo-3')).not.toHaveClass('unread');
+  });
+
   it('紧凑模式下字号按钮同样实时调整列表文字', async () => {
     render(<App />);
     await screen.findByRole('button', { name: '紧凑视图' });
@@ -160,6 +171,51 @@ describe('Zotero Reader 工作台', () => {
     expect(layout.style.getPropertyValue('--figure-width')).toBe('436px');
     fireEvent.keyDown(handle, { key: 'ArrowRight' });
     expect(handle).toHaveAttribute('aria-valuenow', '420');
+  });
+
+  it('点击图片可放大，再次点击图片关闭且不会收起阅读区', async () => {
+    const detail = demoDetail(demoPapers[0]);
+    detail.interpretation!.figures = [{ path: 'figure-1.png', label: '图 1', caption: '实验流程与结果对比' }];
+    vi.spyOn(api, 'detail').mockResolvedValue(detail);
+    vi.spyOn(api, 'asset').mockResolvedValue('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="900"></svg>');
+    render(<App />);
+    fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    fireEvent.click(await screen.findByRole('button', { name: '放大论文配图：实验流程与结果对比' }));
+    const dialog = await screen.findByRole('dialog', { name: '图 1放大预览' });
+    const enlargedImage = dialog.querySelector('img');
+    expect(enlargedImage).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+    fireEvent.click(enlargedImage!);
+    expect(screen.queryByRole('dialog', { name: '图 1放大预览' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '基本信息提取', level: 2 })).toBeInTheDocument();
+  });
+
+  it('滚过文章开头后配图转为悬浮且正文恢复完整宽度', async () => {
+    const detail = demoDetail(demoPapers[0]);
+    detail.interpretation!.figures = [{ path: 'figure-1.png', label: '图 1', caption: '实验流程与结果对比' }];
+    vi.spyOn(api, 'detail').mockResolvedValue(detail);
+    render(<App />);
+    fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
+    const figure = await screen.findByRole('complementary', { name: '论文配图' });
+    const scroller = document.querySelector('.inline-reading-list') as HTMLElement;
+    const layout = document.querySelector('.article-layout') as HTMLElement;
+    const article = document.querySelector('.article-reader') as HTMLElement;
+    const header = document.querySelector('.article-header') as HTMLElement;
+    const rect = (top: number, bottom: number, left = 0, right = 960) => ({ top, bottom, left, right, width: right - left, height: bottom - top, x: left, y: top, toJSON: () => ({}) }) as DOMRect;
+    let headerBottom = 300;
+    vi.spyOn(scroller, 'getBoundingClientRect').mockImplementation(() => rect(100, 800));
+    vi.spyOn(header, 'getBoundingClientRect').mockImplementation(() => rect(headerBottom - 100, headerBottom));
+    vi.spyOn(article, 'getBoundingClientRect').mockImplementation(() => rect(-50, 1500));
+    vi.spyOn(layout, 'getBoundingClientRect').mockImplementation(() => rect(68, 1600));
+    vi.spyOn(figure, 'getBoundingClientRect').mockImplementation(() => rect(112, 612, 540, 960));
+    expect(layout).not.toHaveClass('is-figure-floating');
+    fireEvent.scroll(scroller, { target: { scrollTop: 180 } });
+    headerBottom = 80;
+    fireEvent.scroll(scroller, { target: { scrollTop: 200 } });
+    await waitFor(() => expect(layout).toHaveClass('is-figure-floating'));
+    expect(figure.style.getPropertyValue('--figure-float-right')).toBe(`${window.innerWidth - 960}px`);
+    headerBottom = 260;
+    fireEvent.scroll(scroller, { target: { scrollTop: 0 } });
+    await waitFor(() => expect(layout).not.toHaveClass('is-figure-floating'));
   });
 
   it('全部展开后可独立收起其中一篇，其余阅读区保持打开', async () => {
