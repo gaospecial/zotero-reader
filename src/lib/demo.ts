@@ -21,18 +21,18 @@ const titles = [
 ];
 
 export const demoCollections: Collection[] = [
-  { key: 'ai', name: '人工智能与教育', parentKey: null, itemCount: 4, joined: true },
-  { key: 'feedback', name: '反馈与评价', parentKey: 'ai', itemCount: 3, joined: true },
-  { key: 'learning', name: '学习科学', parentKey: null, itemCount: 4, joined: true },
-  { key: 'online', name: '在线学习', parentKey: 'learning', itemCount: 2, joined: true },
-  { key: 'methods', name: '研究方法', parentKey: null, itemCount: 2, joined: false },
+  { key: 'ai', name: '人工智能与教育', parentKey: null, itemCount: 4, pdfCount: 4, interpretedCount: 4, joined: true },
+  { key: 'feedback', name: '反馈与评价', parentKey: 'ai', itemCount: 2, pdfCount: 2, interpretedCount: 2, joined: true },
+  { key: 'learning', name: '学习科学', parentKey: null, itemCount: 4, pdfCount: 3, interpretedCount: 2, joined: true },
+  { key: 'online', name: '在线学习', parentKey: 'learning', itemCount: 2, pdfCount: 2, interpretedCount: 2, joined: true },
+  { key: 'methods', name: '研究方法', parentKey: null, itemCount: 2, pdfCount: 1, interpretedCount: 0, joined: false },
 ];
 const sections = (): Section[] => Object.entries(sectionText).map(([title, content]) => ({ title, content }));
 export const demoPapers: Paper[] = titles.map(([titleZh, title, oneSentence], index) => ({
   id: `demo-${index + 1}`, zoteroKey: `DEMO${index + 1}`, zoteroVersion: 1, title, titleZh, oneSentence,
   creators: [['林晓', '陈默'], ['周研', '许舟'], ['高宁', '韩青']][index % 3], year: 2024 - (index % 3), publication: ['学习科学研究', '教育技术学报', '开放教育研究'][index % 3], journalAbbreviation: ['学习科学', '教育技术', '开放教育'][index % 3],
   abstractNote: oneSentence, doi: `10.0000/demo.${index + 1}`, url: '', itemType: 'journalArticle', tags: [['AI 反馈', '自我调节'], ['学习分析', '实证研究'], ['教学策略']][index % 3],
-  collections: [index < 4 ? 'ai' : 'learning'], pdfState: index === 6 ? 'unavailable' : 'available', parseState: index === 6 ? 'not_started' : 'succeeded',
+  collections: [['ai', 'feedback', 'ai', 'feedback', 'online', 'online', 'learning', 'learning'][index]], pdfState: index === 6 ? 'unavailable' : 'available', parseState: index === 6 ? 'not_started' : 'succeeded',
   aiState: index === 6 ? 'not_started' : index === 7 ? 'generating' : 'succeeded', zoteroState: 'active', localState: 'active', readState: index % 3 === 0 ? 'unread' : index % 3 === 1 ? 'reading' : 'read',
   mainPdfKey: index === 6 ? null : `PDF${index + 1}`, needsPdfChoice: false, error: null, interpretationId: index >= 6 ? null : `interp-${index + 1}`,
   pendingZoteroTrash: false, updatedAt: new Date(Date.now() - index * 86400000).toISOString(), importedAt: new Date(Date.now() - 20 * 86400000).toISOString(),
@@ -43,7 +43,7 @@ export const demoBootstrap: Bootstrap = {
   services: { zoteroConnected: false, deepseekConfigured: false, doc2xConfigured: false, demoMode: true },
 };
 export function demoDetail(paper: Paper): PaperDetail {
-  return { ...paper, interpretation: paper.interpretationId ? { id: `interp-${paper.id}`, itemId: paper.id, markdownVersionId: `md-${paper.id}`, titleZh: paper.titleZh, oneSentence: paper.oneSentence, sections: sections(), figures: [], model: 'deepseek-v4-flash-vision-exp', createdAt: paper.updatedAt } : null, note: paper.id === 'demo-1' ? '后续可重点关注“元认知提示”的实验操控，以及延迟迁移测验的设计。' : '' };
+  return { ...paper, interpretation: paper.interpretationId ? { id: `interp-${paper.id}`, itemId: paper.id, markdownVersionId: `md-${paper.id}`, titleZh: paper.titleZh, oneSentence: paper.oneSentence, sections: sections(), figures: paper.id === 'demo-1' ? [{ path: 'demo/self-regulated-learning.svg', label: '图 1', caption: '不同反馈方式下的延迟迁移表现（演示数据）', source: '主要发现与结果' }] : paper.id === 'demo-2' ? [{ path: 'demo/structured-feedback-loop.svg', label: '图 1', caption: '结构化追问促进自我解释与知识迁移的反馈循环', source: '创新点与贡献' }] : [], model: 'deepseek-v4-flash-vision-exp', createdAt: paper.updatedAt } : null, note: paper.id === 'demo-1' ? '后续可重点关注“元认知提示”的实验操控，以及延迟迁移测验的设计。' : '' };
 }
 export function demoAnswer(question: string): string {
   return `围绕“${question}”，文献的核心观点是：AI 反馈应帮助学习者识别理解差距，而不是替代其思考。\n\n【来源：研究方法】研究通过前测、后测与延迟测比较不同反馈条件，并结合学习日志分析过程变化。\n\n【来源：主要发现与结果】元认知提示组在延迟迁移任务上表现更好，也出现了更多自我解释行为。\n\n【模型推断】这意味着在实际产品中，可以优先设计“你先判断哪里不确定”一类追问，但仍需结合具体学科验证。`;

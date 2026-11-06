@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1400" viewBox="0 0 800 1400" role="img" aria-labelledby="title desc">
+  <title id="title">从答案反馈到结构化追问</title>
+  <desc id="desc">纵向流程图展示智能辅导系统如何通过诊断、追问、自我解释和迁移监控促进学习者思考。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#faf7f1"/><stop offset="1" stop-color="#eee9df"/></linearGradient>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="5" refY="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#a4332b"/></marker>
+  </defs>
+  <rect width="800" height="1400" rx="26" fill="url(#bg)"/>
+  <rect x="28" y="28" width="744" height="1344" rx="18" fill="#fffefa" stroke="#dcd4c6"/>
+  <g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <text x="70" y="88" font-size="16" font-weight="600" fill="#a4332b" letter-spacing="3">FIGURE 02 · FEEDBACK DESIGN</text>
+    <text x="70" y="137" font-size="34" font-weight="700" fill="#302c26">从“给答案”到“促思考”</text>
+    <text x="70" y="174" font-size="18" fill="#8d8375">结构化追问的四步反馈循环</text>
+
+    <rect x="70" y="215" width="660" height="180" rx="16" fill="#f5f1ea" stroke="#ddd4c7"/>
+    <text x="104" y="259" font-size="18" font-weight="650" fill="#716657">传统答案反馈</text>
+    <rect x="104" y="287" width="210" height="62" rx="10" fill="#fff" stroke="#d7cec0"/>
+    <text x="209" y="326" text-anchor="middle" font-size="17" fill="#554c42">学习者提出问题</text>
+    <path d="M329 318H384" stroke="#9e9486" stroke-width="2" marker-end="url(#arrow)"/>
+    <rect x="402" y="287" width="260" height="62" rx="10" fill="#e9e3da"/>
+    <text x="532" y="326" text-anchor="middle" font-size="17" fill="#716657">AI 直接给出结论</text>
+
+    <path d="M400 420V465" stroke="#a4332b" stroke-width="3" marker-end="url(#arrow)"/>
+    <text x="424" y="447" font-size="15" fill="#a4332b">反馈方式重构</text>
+
+    <g>
+      <circle cx="114" cy="533" r="34" fill="#a4332b"/><text x="114" y="543" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">1</text>
+      <rect x="170" y="482" width="530" height="104" rx="14" fill="#f9f1ed" stroke="#dfb9ae"/>
+      <text x="202" y="525" font-size="22" font-weight="700" fill="#84342d">识别当前理解</text>
+      <text x="202" y="558" font-size="16" fill="#75685b">收集回答、错误与学习日志中的过程信号</text>
+    </g>
+    <path d="M400 592V632" stroke="#b9aa99" stroke-width="2" marker-end="url(#arrow)"/>
+    <g>
+      <circle cx="114" cy="699" r="34" fill="#b25a49"/><text x="114" y="709" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">2</text>
+      <rect x="170" y="648" width="530" height="104" rx="14" fill="#f8f3ed" stroke="#dbc9ba"/>
+      <text x="202" y="691" font-size="22" font-weight="700" fill="#84342d">生成结构化追问</text>
+      <text x="202" y="724" font-size="16" fill="#75685b">“你依据了什么？还有哪种解释可能成立？”</text>
+    </g>
+    <path d="M400 758V798" stroke="#b9aa99" stroke-width="2" marker-end="url(#arrow)"/>
+    <g>
+      <circle cx="114" cy="865" r="34" fill="#bd7963"/><text x="114" y="875" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">3</text>
+      <rect x="170" y="814" width="530" height="104" rx="14" fill="#f6f2eb" stroke="#ddd2c4"/>
+      <text x="202" y="857" font-size="22" font-weight="700" fill="#554c42">引导自我解释</text>
+      <text x="202" y="890" font-size="16" fill="#75685b">让学习者阐述推理、发现差距并修正策略</text>
+    </g>
+    <path d="M400 924V964" stroke="#b9aa99" stroke-width="2" marker-end="url(#arrow)"/>
+    <g>
+      <circle cx="114" cy="1031" r="34" fill="#7f8d72"/><text x="114" y="1041" text-anchor="middle" font-size="25" font-weight="700" fill="#fff">4</text>
+      <rect x="170" y="980" width="530" height="104" rx="14" fill="#f0f3ec" stroke="#cbd4c2"/>
+      <text x="202" y="1023" font-size="22" font-weight="700" fill="#526348">监控迁移与保持</text>
+      <text x="202" y="1056" font-size="16" fill="#68725e">通过后测和延迟测检验能否独立应用</text>
+    </g>
+
+    <rect x="70" y="1140" width="660" height="148" rx="16" fill="#34342e"/>
+    <text x="104" y="1185" font-size="17" font-weight="650" fill="#e6b6a7">核心转变</text>
+    <text x="104" y="1226" font-size="23" font-weight="650" fill="#fffdf7">AI 不替代思考，而是搭建思维脚手架</text>
+    <text x="104" y="1260" font-size="15" fill="#bbb8ac">答案供给 → 提问引导 → 自我监控 → 独立迁移</text>
+  </g>
+  <text x="716" y="1330" text-anchor="end" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#aaa092">DEMO MODEL · 仅用于界面预览</text>
+</svg>

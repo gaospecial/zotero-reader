@@ -97,7 +97,7 @@ impl ZoteroClient {
     pub async fn collections(&self) -> Result<Vec<Collection>> {
         Ok(self.fetch_all("/collections").await?.iter().filter_map(|v| {
             let data = v.get("data")?;
-            Some(Collection { key:v.get("key")?.as_str()?.into(), name:data.get("name")?.as_str()?.into(), parent_key:data.get("parentCollection").and_then(|p|if p.is_string(){p.as_str().map(Into::into)}else{None}), item_count:0, joined:false })
+            Some(Collection { key:v.get("key")?.as_str()?.into(), name:data.get("name")?.as_str()?.into(), parent_key:data.get("parentCollection").and_then(|p|if p.is_string(){p.as_str().map(Into::into)}else{None}), item_count:0, pdf_count:0, interpreted_count:0, joined:false })
         }).collect())
     }
 
@@ -109,6 +109,32 @@ impl ZoteroClient {
             pending.extend(all.iter().filter(|c|c.parent_key.as_ref()==Some(&key)).map(|c|c.key.clone()));
         }
         result
+    }
+
+    pub async fn collection_overviews(&self) -> Result<Vec<CollectionOverview>> {
+        let collections=self.collections().await?;
+        let items=self.fetch_all("/items/top").await?;
+        let attachments=self.fetch_all("/items?itemType=attachment").await?;
+        Ok(Self::summarize_collection_overviews(&collections,&items,&attachments))
+    }
+
+    pub fn summarize_collection_overviews(collections:&[Collection],items:&[Value],attachments:&[Value])->Vec<CollectionOverview>{
+        let pdf_parents:BTreeSet<String>=attachments.iter().filter(|item|{
+            let data=item.get("data").unwrap_or(&Value::Null);
+            data.get("contentType").and_then(Value::as_str)==Some("application/pdf")
+        }).filter_map(|item|item.get("data").and_then(|data|data.get("parentItem")).and_then(Value::as_str).map(str::to_string)).collect();
+        collections.iter().map(|collection|{
+            let keys=Self::selected_collections(collections,&[collection.key.clone()]);
+            let mut total=BTreeSet::new();let mut with_pdf=BTreeSet::new();
+            for item in items{
+                let belongs=item.get("data").and_then(|data|data.get("collections")).and_then(Value::as_array).map(|values|values.iter().filter_map(Value::as_str).any(|key|keys.contains(key))).unwrap_or(false);
+                if !belongs{continue;}
+                let Some(key)=item.get("key").and_then(Value::as_str) else{continue;};
+                total.insert(key.to_string());
+                if pdf_parents.contains(key){with_pdf.insert(key.to_string());}
+            }
+            CollectionOverview{key:collection.key.clone(),total:total.len(),with_pdf:with_pdf.len()}
+        }).collect()
     }
 
     pub async fn top_items(&self, collection_keys: &BTreeSet<String>) -> Result<Vec<Value>> {
@@ -375,8 +401,17 @@ pub async fn sync_existing(state: &crate::state::AppState) -> Result<usize> {
 mod tests {
     use super::*;
     #[test] fn recursive_selection_includes_descendants() {
-        let all=vec![Collection{key:"a".into(),name:"A".into(),parent_key:None,item_count:0,joined:false},Collection{key:"b".into(),name:"B".into(),parent_key:Some("a".into()),item_count:0,joined:false},Collection{key:"c".into(),name:"C".into(),parent_key:Some("b".into()),item_count:0,joined:false}];
+        let all=vec![Collection{key:"a".into(),name:"A".into(),parent_key:None,item_count:0,pdf_count:0,interpreted_count:0,joined:false},Collection{key:"b".into(),name:"B".into(),parent_key:Some("a".into()),item_count:0,pdf_count:0,interpreted_count:0,joined:false},Collection{key:"c".into(),name:"C".into(),parent_key:Some("b".into()),item_count:0,pdf_count:0,interpreted_count:0,joined:false}];
         assert_eq!(ZoteroClient::selected_collections(&all,&["a".into()]).len(),3);
+    }
+
+    #[test] fn collection_overviews_include_descendants_and_count_items_once(){
+        let collections=vec![Collection{key:"a".into(),name:"A".into(),parent_key:None,item_count:0,pdf_count:0,interpreted_count:0,joined:false},Collection{key:"b".into(),name:"B".into(),parent_key:Some("a".into()),item_count:0,pdf_count:0,interpreted_count:0,joined:false}];
+        let items=vec![json!({"key":"ONE","data":{"collections":["a","b"]}}),json!({"key":"TWO","data":{"collections":["b"]}}),json!({"key":"OTHER","data":{"collections":["other"]}})];
+        let attachments=vec![json!({"data":{"contentType":"application/pdf","parentItem":"TWO"}}),json!({"data":{"contentType":"image/png","parentItem":"ONE"}})];
+        let overview=ZoteroClient::summarize_collection_overviews(&collections,&items,&attachments);
+        assert_eq!((overview[0].total,overview[0].with_pdf),(2,1));
+        assert_eq!((overview[1].total,overview[1].with_pdf),(2,1));
     }
 
     fn pdf(key:&str)->Attachment{Attachment{key:key.into(),title:format!("PDF {key}"),filename:format!("{key}.pdf")}}
@@ -558,7 +593,7 @@ mod tests {
         let bad_file=server.mock("GET","/api/users/0/items/BADPDF/file").match_header("range","bytes=0-4").with_status(404).create_async().await;
         let good_metadata=server.mock("GET","/api/users/0/items/GOODPDF").with_status(200).with_header("content-type","application/json").with_body(json!({"key":"GOODPDF","data":{"itemType":"attachment","contentType":"application/pdf","path":good_path.to_string_lossy(),"filename":"good.pdf"}}).to_string()).create_async().await;
         let db=db::open(Path::new(":memory:")).unwrap();
-        let state=crate::state::AppState{db:db.clone(),data_dir:temp.path().to_path_buf(),http:Client::new(),zotero_base:format!("{}/api/users/0",server.url()),jobs:std::sync::Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new()))};
+        let state=crate::state::AppState{db:db.clone(),data_dir:temp.path().to_path_buf(),http:Client::new(),zotero_base:format!("{}/api/users/0",server.url()),jobs:std::sync::Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),collection_sync:std::sync::Arc::new(tokio::sync::Mutex::new(()))};
         let (result,choices)=import_collections(&state,&["C".to_string()]).await.unwrap();
         assert_eq!((result.imported,result.queued,result.skipped),(2,1,0));assert!(choices.is_empty());
         let broken=db::paper_by_zotero_key(&db,"BAD").unwrap().unwrap();

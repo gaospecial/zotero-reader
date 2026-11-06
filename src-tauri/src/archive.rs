@@ -86,7 +86,7 @@ pub fn figures_from_markdown(markdown:&str)->Vec<Figure>{
         let path=raw.trim_matches('<').trim_matches('>').split('#').next().unwrap_or_default().to_string();
         if path.is_empty()||path.starts_with("http:")||path.starts_with("https:")||path.starts_with("data:"){continue;}
         let label=caption.split(['：',':']).next().filter(|s|s.contains("图")||s.to_ascii_lowercase().starts_with("fig")).unwrap_or(&section).to_string();
-        figures.push(Figure{path,caption:if caption.is_empty(){format!("论文图片 {}",figures.len()+1)}else{caption},label:if label.is_empty(){format!("图 {}",figures.len()+1)}else{label}});
+        figures.push(Figure{path,caption:if caption.is_empty(){format!("论文图片 {}",figures.len()+1)}else{caption},label:if label.is_empty(){format!("图 {}",figures.len()+1)}else{label},source:if section.is_empty(){None}else{Some(section.clone())}});
     }
     figures
 }
@@ -105,7 +105,7 @@ pub fn read_asset(data_dir:&Path,item_id:&str,version_id:&str,relative:&str)->Re
     use super::*;
     #[test]fn rejects_untrusted_and_http_urls(){let hosts=vec!["example.com".into()];assert!(validate_download_url("http://example.com/a.zip",&hosts).is_err());assert!(validate_download_url("https://evil.com/a.zip",&hosts).is_err());assert!(validate_download_url("https://cdn.example.com/a.zip",&hosts).is_ok());}
     #[test]fn rejects_zip_slip(){assert!(safe_relative(Path::new("../../secret")).is_err());assert!(safe_relative(Path::new("/etc/passwd")).is_err());}
-    #[test]fn extracts_ordered_figures(){let f=figures_from_markdown("# 结果\n![图 1：准确率](figures/a.png)\n![表 2](figures/b.jpg)");assert_eq!(f.len(),2);assert_eq!(f[0].path,"figures/a.png");}
+    #[test]fn extracts_ordered_figures(){let f=figures_from_markdown("# 结果\n![图 1：准确率](figures/a.png)\n![表 2](figures/b.jpg)");assert_eq!(f.len(),2);assert_eq!(f[0].path,"figures/a.png");assert_eq!(f[0].source.as_deref(),Some("结果"));}
     #[test]fn reads_relative_markdown_from_its_version_directory(){
         let temp=tempfile::tempdir().unwrap();let version=temp.path().join("version");std::fs::create_dir_all(version.join("nested")).unwrap();
         std::fs::write(version.join("nested/full.md"),"# 正文").unwrap();

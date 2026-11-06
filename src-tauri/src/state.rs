@@ -9,6 +9,7 @@ pub struct AppState {
     pub http: reqwest::Client,
     pub zotero_base: String,
     pub jobs: Arc<Mutex<HashMap<String, CancellationToken>>>,
+    pub collection_sync: Arc<Mutex<()>>,
 }
 
 impl AppState {

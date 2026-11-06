@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="title desc">
+  <title id="title">生成式 AI 反馈与延迟迁移表现</title>
+  <desc id="desc">演示三组学习者在不同反馈方式下的延迟迁移得分，元认知提示组表现较高。</desc>
+  <defs>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#faf8f3"/><stop offset="1" stop-color="#f1ede4"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#463b2c" flood-opacity=".09"/></filter>
+  </defs>
+  <rect width="1200" height="760" rx="28" fill="url(#paper)"/>
+  <rect x="34" y="34" width="1132" height="692" rx="20" fill="#fffefa" stroke="#ded7ca"/>
+  <g font-family="PingFang SC, Microsoft YaHei, sans-serif">
+    <text x="76" y="92" font-size="18" font-weight="600" fill="#a4332b" letter-spacing="3">FIGURE 01 · LEARNING OUTCOMES</text>
+    <text x="76" y="139" font-size="34" font-weight="700" fill="#302c26">生成式 AI 反馈与延迟迁移表现</text>
+    <text x="76" y="174" font-size="18" fill="#8d8375">不同反馈方式下的学习机制与结果比较</text>
+
+    <g filter="url(#shadow)">
+      <rect x="76" y="212" width="330" height="154" rx="14" fill="#f9f1ed" stroke="#dfb9ae"/>
+      <rect x="435" y="212" width="330" height="154" rx="14" fill="#f5f2ec" stroke="#ded7ca"/>
+      <rect x="794" y="212" width="330" height="154" rx="14" fill="#f5f2ec" stroke="#ded7ca"/>
+    </g>
+    <text x="102" y="253" font-size="22" font-weight="700" fill="#8f342c">元认知提示组</text>
+    <text x="102" y="290" font-size="17" fill="#665b4f">“你先判断哪里不确定？”</text>
+    <text x="102" y="323" font-size="16" fill="#95897b">自我解释 · 理解监控 · 策略调整</text>
+    <text x="461" y="253" font-size="22" font-weight="700" fill="#4e473e">直接反馈组</text>
+    <text x="461" y="290" font-size="17" fill="#665b4f">直接生成正确答案与解析</text>
+    <text x="461" y="323" font-size="16" fill="#95897b">即时帮助 · 被动接受答案</text>
+    <text x="820" y="253" font-size="22" font-weight="700" fill="#4e473e">常规学习组</text>
+    <text x="820" y="290" font-size="17" fill="#665b4f">阅读材料与自主练习</text>
+    <text x="820" y="323" font-size="16" fill="#95897b">无 AI 干预 · 基线对照</text>
+
+    <text x="76" y="419" font-size="20" font-weight="650" fill="#403a32">延迟迁移任务得分</text>
+    <text x="1076" y="419" text-anchor="end" font-size="14" fill="#9c9182">满分 100</text>
+    <g stroke="#e8e2d8" stroke-width="1"><path d="M126 467H1076M126 527H1076M126 587H1076M126 647H1076"/></g>
+    <g font-size="14" fill="#a09688" text-anchor="end"><text x="108" y="472">100</text><text x="108" y="532">75</text><text x="108" y="592">50</text><text x="108" y="652">25</text></g>
+    <g>
+      <rect x="226" y="459" width="150" height="188" rx="8" fill="#a4332b"/>
+      <rect x="526" y="510" width="150" height="137" rx="8" fill="#c08b76"/>
+      <rect x="826" y="537" width="150" height="110" rx="8" fill="#a9a095"/>
+      <text x="301" y="493" text-anchor="middle" font-size="30" font-weight="700" fill="#fff">86</text>
+      <text x="601" y="544" text-anchor="middle" font-size="30" font-weight="700" fill="#fff">72</text>
+      <text x="901" y="571" text-anchor="middle" font-size="30" font-weight="700" fill="#fff">64</text>
+      <text x="301" y="684" text-anchor="middle" font-size="17" font-weight="600" fill="#554c42">元认知提示</text>
+      <text x="601" y="684" text-anchor="middle" font-size="17" font-weight="600" fill="#554c42">直接反馈</text>
+      <text x="901" y="684" text-anchor="middle" font-size="17" font-weight="600" fill="#554c42">常规学习</text>
+    </g>
+  </g>
+  <text x="1118" y="710" text-anchor="end" font-family="PingFang SC, Microsoft YaHei, sans-serif" font-size="12" fill="#b0a696">DEMO DATA · 仅用于界面预览</text>
+</svg>

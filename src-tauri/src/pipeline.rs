@@ -8,7 +8,11 @@ fn progress(app:&AppHandle,item_id:&str,stage:&str,message:&str){let _=app.emit(
 
 pub fn spawn(state:Arc<AppState>,app:AppHandle,item_id:String){
     tauri::async_runtime::spawn(async move{
-        let token=CancellationToken::new();state.jobs.lock().await.insert(item_id.clone(),token.clone());
+        let token=CancellationToken::new();
+        let mut jobs=state.jobs.lock().await;
+        if jobs.contains_key(&item_id){return;}
+        jobs.insert(item_id.clone(),token.clone());
+        drop(jobs);
         if let Err(error)=process(state.clone(),app.clone(),item_id.clone(),token).await{
             let message=format!("{error:#}");
             let _=db::set_error(&state.db,&item_id,Some(&message));

@@ -1,12 +1,19 @@
-import { BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, Import, Library, LoaderCircle, NotebookPen, Plus, Recycle, RefreshCw, Star, Wifi, WifiOff } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { BookOpen, ChevronDown, ChevronRight, Files, FileText, Folder, FolderOpen, Import, Library, LoaderCircle, NotebookPen, Plus, Recycle, RefreshCw, Sparkles, Star, Wifi, WifiOff } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import appIcon from '../../src-tauri/icons/64x64.png';
 import type { Collection, LibraryStats, ServiceStatus, ViewName } from '../types';
 
 interface Props { view: ViewName; onView: (view: ViewName) => void; collection: string; onCollection: (key: string) => void; collections: Collection[]; stats: LibraryStats; starredCount: number; services: ServiceStatus; onImport: () => void; onSync: (key: string) => void; syncingCollection: string | null; onSettings: () => void }
 export default function Sidebar({ view, onView, collection, onCollection, collections, stats, starredCount, services, onImport, onSync, syncingCollection, onSettings }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set(collections.map(c => c.key)));
+  const knownCollectionKeys = useRef(new Set(collections.map(c => c.key)));
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
+  useEffect(() => {
+    const newKeys = collections.filter(item => !knownCollectionKeys.current.has(item.key)).map(item => item.key);
+    knownCollectionKeys.current = new Set(collections.map(item => item.key));
+    if (!newKeys.length) return;
+    setExpanded(previous => new Set([...previous, ...newKeys]));
+  }, [collections]);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
@@ -24,7 +31,7 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     return <div key={item.key}>
       <div className={`tree-row ${collection === item.key && (view === 'library' || view === 'reader') ? 'active' : ''}`} style={{ paddingLeft: 12 + depth * 16 }} onContextMenu={event => { if (!item.joined) return; event.preventDefault(); setMenu({ key: item.key, x: Math.min(event.clientX, window.innerWidth - 190), y: Math.min(event.clientY, window.innerHeight - 58) }); }}>
         {children.length ? <button className="tree-toggle" onClick={() => setExpanded(previous => { const next = new Set(previous); if (next.has(item.key)) next.delete(item.key); else next.add(item.key); return next; })} aria-label={open ? '折叠分类' : '展开分类'}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</button> : <span className="tree-spacer" />}
-        <button className="tree-main" aria-haspopup={item.joined ? 'menu' : undefined} onClick={() => { onCollection(item.key); onView('library'); }}>{collection === item.key ? <FolderOpen size={15} /> : <Folder size={15} />}<span>{item.name}</span>{busy ? <small className="tree-syncing"><LoaderCircle size={11} className="spin" />同步中</small> : <small>{item.itemCount || ''}</small>}</button>
+        <button className="tree-main" aria-haspopup={item.joined ? 'menu' : undefined} onClick={() => { onCollection(item.key); onView('library'); }}>{collection === item.key ? <FolderOpen size={15} /> : <Folder size={15} />}<span className="tree-name">{item.name}</span>{busy ? <small className="tree-syncing"><LoaderCircle size={11} className="spin" />同步中</small> : <span className="collection-stats" aria-label={`${item.itemCount} 篇文献，${item.pdfCount} 篇有 PDF 全文，${item.interpretedCount} 篇已解读`} title="文献 / PDF 全文 / 已解读"><span title="全部文献">{item.itemCount}</span><i>/</i><span title="有 PDF 全文">{item.pdfCount}</span><i>/</i><span title="已解读">{item.interpretedCount}</span></span>}</button>
       </div>
       {open && children.map(child => renderCollection(child, depth + 1))}
     </div>;
@@ -36,10 +43,10 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
       <button className={(view === 'library' || view === 'reader') && collection === 'all' ? 'active' : ''} onClick={() => { onCollection('all'); onView('library'); }}><Library size={17} /><span>全部文献</span><small>{stats.total}</small></button>
       <button className={(view === 'library' || view === 'reader') && collection === 'unread' ? 'active' : ''} onClick={() => { onCollection('unread'); onView('library'); }}><BookOpen size={17} /><span>未读</span><small>{stats.unread}</small></button>
       <button className={(view === 'library' || view === 'reader') && collection === 'starred' ? 'active' : ''} onClick={() => { onCollection('starred'); onView('library'); }} aria-label="星标"><Star size={17} fill={(view === 'library' || view === 'reader') && collection === 'starred' ? 'currentColor' : 'none'} /><span>星标</span><small>{starredCount || ''}</small></button>
-      <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')}><NotebookPen size={17} /><span>查看备忘</span></button>
+      <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')}><NotebookPen size={17} /><span>备忘</span></button>
       <button className={view === 'trash' ? 'active' : ''} onClick={() => onView('trash')}><Recycle size={17} /><span>回收站</span><small>{stats.trash || ''}</small></button>
     </nav>
-    <div className="sidebar-section"><div className="section-label"><span>ZOTERO 分类</span><button aria-label="添加分类" onClick={onImport}><Plus size={13} /></button></div><div className="collection-tree">{roots.map(root => renderCollection(root))}</div></div>
+    <div className="sidebar-section"><div className="section-label"><span>ZOTERO 分类</span><div className="collection-stats-legend" role="img" aria-label="统计顺序：全部文献、PDF 全文、已解读"><span title="全部文献"><Files size={11} /></span><span title="有 PDF 全文"><FileText size={11} /></span><span title="已解读"><Sparkles size={11} /></span></div></div><div className="collection-tree">{roots.map(root => renderCollection(root))}</div></div>
     <div className="sidebar-bottom"><button className="connection-card" onClick={onSettings}><span className={`connection-icon ${services.zoteroConnected ? 'connected' : ''}`}>{services.zoteroConnected ? <Wifi size={15} /> : <WifiOff size={15} />}</span><span><strong>{services.demoMode ? '浏览器演示' : services.zoteroConnected ? 'Zotero 已连接' : 'Zotero 未连接'}</strong><small>{services.demoMode ? '桌面端接入真实文库' : services.zoteroConnected ? '本地文库 · 仅本机访问' : '点击检查连接与配置'}</small></span><ChevronRight size={14} /></button></div>
     {menu && menuCollection && <><div className="menu-scrim" onClick={() => setMenu(null)} onContextMenu={event => { event.preventDefault(); setMenu(null); }} /><div className="collection-context-menu" role="menu" aria-label={`${menuCollection.name}分类操作`} style={{ left: menu.x, top: menu.y }}><button role="menuitem" disabled={syncingCollection !== null} onClick={() => { onSync(menuCollection.key); setMenu(null); }}>{syncingCollection === menuCollection.key ? <LoaderCircle size={14} className="spin" /> : <RefreshCw size={14} />}与 Zotero 同步</button></div></>}
   </aside>;

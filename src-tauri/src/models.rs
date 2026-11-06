@@ -9,7 +9,19 @@ pub struct Collection {
     #[serde(default)]
     pub item_count: i64,
     #[serde(default)]
+    pub pdf_count: i64,
+    #[serde(default)]
+    pub interpreted_count: i64,
+    #[serde(default)]
     pub joined: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CollectionOverview {
+    pub key: String,
+    pub total: usize,
+    pub with_pdf: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +39,8 @@ pub struct Figure {
     pub path: String,
     pub caption: String,
     pub label: String,
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +110,19 @@ pub struct Note {
     pub content: String,
     pub locator: Option<String>,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteLocator {
+    pub version: u8,
+    pub section_index: usize,
+    pub section_title: String,
+    pub exact: String,
+    pub prefix: String,
+    pub suffix: String,
+    pub start: usize,
+    pub end: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -17,6 +17,10 @@ pub async fn get_bootstrap(state:State<'_,Arc<AppState>>)->CmdResult<Bootstrap>{
 #[tauri::command]pub fn get_paper_detail(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<PaperDetail>{db::get_detail(&state.db,&item_id).map_err(err)}
 #[tauri::command]pub fn list_notes(state:State<'_,Arc<AppState>>,search:Option<String>)->CmdResult<Vec<Note>>{db::list_notes(&state.db,search.as_deref()).map_err(err)}
 #[tauri::command]pub fn save_note(state:State<'_,Arc<AppState>>,item_id:String,content:String)->CmdResult<()>{db::save_note(&state.db,&item_id,&content).map_err(err)}
+#[tauri::command]pub fn list_item_notes(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<Vec<Note>>{db::list_item_notes(&state.db,&item_id).map_err(err)}
+#[tauri::command]pub fn create_anchored_note(state:State<'_,Arc<AppState>>,item_id:String,interpretation_id:String,content:String,locator:NoteLocator)->CmdResult<String>{db::create_anchored_note(&state.db,&item_id,&interpretation_id,&content,&locator).map_err(err)}
+#[tauri::command]pub fn update_anchored_note(state:State<'_,Arc<AppState>>,note_id:String,content:String)->CmdResult<()>{db::update_anchored_note(&state.db,&note_id,&content).map_err(err)}
+#[tauri::command]pub fn delete_anchored_note(state:State<'_,Arc<AppState>>,note_id:String)->CmdResult<()>{db::delete_anchored_note(&state.db,&note_id).map_err(err)}
 #[tauri::command]pub fn list_qa(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<Vec<QaMessage>>{db::list_qa(&state.db,&item_id).map_err(err)}
 #[tauri::command]pub fn clear_qa(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<()>{db::clear_qa(&state.db,&item_id).map_err(err)}
 
@@ -30,19 +34,37 @@ pub async fn preview_import(state:State<'_,Arc<AppState>>,collection_keys:Vec<St
 }
 
 #[tauri::command]
-pub async fn import_collections(state:State<'_,Arc<AppState>>,app:AppHandle,collection_keys:Vec<String>)->CmdResult<ImportResult>{
-    let (result,_)=crate::zotero::import_collections(&state,&collection_keys).await.map_err(err)?;
+pub async fn get_collection_overviews(state:State<'_,Arc<AppState>>)->CmdResult<Vec<CollectionOverview>>{
+    state.zotero().collection_overviews().await.map_err(err)
+}
+
+async fn import_and_queue(state:&Arc<AppState>,app:&AppHandle,collection_keys:&[String])->CmdResult<ImportResult>{
+    let _guard=state.collection_sync.lock().await;
+    let (result,_)=crate::zotero::import_collections(state,collection_keys).await.map_err(err)?;
     let papers=db::list_papers(&state.db,LibraryQuery{search:None,collection:None,status:None,view:None,sort:None}).map_err(err)?;
-    let shared=state.inner().clone();for paper in papers.into_iter().filter(|p|p.pdf_state=="available"&&(p.parse_state=="queued"||p.ai_state=="queued")){pipeline::spawn(shared.clone(),app.clone(),paper.id);}
+    for paper in papers.into_iter().filter(|p|p.pdf_state=="available"&&(p.parse_state=="queued"||p.ai_state=="queued")){pipeline::spawn(state.clone(),app.clone(),paper.id);}
     Ok(result)
 }
 
 #[tauri::command]
+pub async fn import_collections(state:State<'_,Arc<AppState>>,app:AppHandle,collection_keys:Vec<String>)->CmdResult<ImportResult>{
+    import_and_queue(state.inner(),&app,&collection_keys).await
+}
+
+#[tauri::command]
 pub async fn sync_collection(state:State<'_,Arc<AppState>>,app:AppHandle,collection_key:String)->CmdResult<ImportResult>{
-    let (result,_)=crate::zotero::import_collections(&state,&[collection_key]).await.map_err(err)?;
-    let papers=db::list_papers(&state.db,LibraryQuery{search:None,collection:None,status:None,view:None,sort:None}).map_err(err)?;
-    let shared=state.inner().clone();for paper in papers.into_iter().filter(|p|p.pdf_state=="available"&&(p.parse_state=="queued"||p.ai_state=="queued")){pipeline::spawn(shared.clone(),app.clone(),paper.id);}
-    Ok(result)
+    import_and_queue(state.inner(),&app,&[collection_key]).await
+}
+
+pub async fn auto_sync_joined(state:Arc<AppState>,app:AppHandle){
+    if state.zotero().check().await.is_err(){return;}
+    let _=crate::zotero::sync_existing(&state).await;
+    let joined=match db::list_collections(&state.db){Ok(collections)=>collections.into_iter().filter(|collection|collection.joined).map(|collection|collection.key).collect::<Vec<_>>(),Err(_)=>return};
+    if joined.is_empty(){return;}
+    match import_and_queue(&state,&app,&joined).await{
+        Ok(result)=>{let _=app.emit("library-synced",result);},
+        Err(error)=>eprintln!("自动同步 Zotero 分类失败：{error}"),
+    }
 }
 
 #[tauri::command]pub fn list_pdf_choices(state:State<'_,Arc<AppState>>)->CmdResult<Vec<PdfChoice>>{

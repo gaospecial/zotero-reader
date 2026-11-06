@@ -1,5 +1,6 @@
 import { BookOpen, Import, LoaderCircle, Recycle, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import CollectionImportCard from './components/CollectionImportCard';
 import ImportDialog from './components/ImportDialog';
 import MemoDialog from './components/MemoDialog';
 import NotesView from './components/NotesView';
@@ -8,10 +9,10 @@ import SettingsDialog from './components/SettingsDialog';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import { Toast } from './components/ui';
-import { api, onProgress } from './lib/api';
+import { api, onLibrarySynced, onProgress } from './lib/api';
 import { demoBootstrap } from './lib/demo';
 import { readStoredStar, writeStoredStar } from './lib/stars';
-import type { Collection, LibraryStats, Paper, PaperDetail, ServiceStatus, ViewName } from './types';
+import type { Collection, CollectionOverview, ImportPreview, LibraryStats, Paper, PaperDetail, ServiceStatus, ViewName } from './types';
 
 export default function App() {
   const [view, setView] = useState<ViewName>('library');
@@ -19,6 +20,7 @@ export default function App() {
   const [allPapers, setAllPapers] = useState<Paper[]>([]);
   const [starredIds, setStarredIds] = useState<Record<string, boolean>>({});
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionOverviews, setCollectionOverviews] = useState<Record<string, CollectionOverview>>({});
   const [stats, setStats] = useState<LibraryStats>({ total: 0, unread: 0, processing: 0, trash: 0, pendingSync: 0 });
   const [services, setServices] = useState<ServiceStatus>(demoBootstrap.services);
   const [search, setSearch] = useState('');
@@ -33,6 +35,10 @@ export default function App() {
   const [syncingCollection, setSyncingCollection] = useState<string | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importKeys, setImportKeys] = useState<string[]>([]);
+  const [importStartAtPreview, setImportStartAtPreview] = useState(false);
+  const [importInitialPreview, setImportInitialPreview] = useState<ImportPreview | null>(null);
+  const [collectionPreview, setCollectionPreview] = useState<ImportPreview | null>(null);
+  const [collectionPreviewLoading, setCollectionPreviewLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoOpen, setMemoOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null);
@@ -46,6 +52,18 @@ export default function App() {
     setServices(data.services);
     return data.papers;
   }, []);
+  const refreshCollectionOverviews = useCallback(async () => {
+    try {
+      const values = await api.collectionOverviews();
+      setCollectionOverviews(Object.fromEntries(values.map(value => [value.key, value])));
+    } catch { /* 本地统计仍可用，Zotero 恢复后自动重试。 */ }
+  }, []);
+  const collectionsWithOverviews = useMemo(() => collections.map(item => {
+    const overview = collectionOverviews[item.key];
+    return overview ? { ...item, itemCount: overview.total, pdfCount: overview.withPdf } : item;
+  }), [collections, collectionOverviews]);
+  const currentCollection = collectionsWithOverviews.find(item => item.key === collection);
+  const unjoinedCollection = view === 'library' && currentCollection && !currentCollection.joined ? currentCollection : null;
   const refreshLibrary = useCallback(async () => {
     const query = { search, collection: collection === 'unread' || collection === 'starred' ? undefined : collection, status: collection === 'unread' ? 'unread' : undefined, view: view === 'trash' ? 'trash' : 'library', sort };
     setPapers(await api.listLibrary(query));
@@ -64,7 +82,17 @@ export default function App() {
 
   useEffect(() => { Promise.all([refreshMeta(), refreshLibrary()]).catch(error => notify(String(error), 'error')).finally(() => setLoading(false)); }, []);
   useEffect(() => { const id = setTimeout(() => refreshLibrary().catch(error => notify(String(error), 'error')), 180); return () => clearTimeout(id); }, [refreshLibrary]);
+  useEffect(() => { void refreshCollectionOverviews(); const id = window.setInterval(refreshCollectionOverviews, 300000); return () => window.clearInterval(id); }, [refreshCollectionOverviews]);
   useEffect(() => { let dispose: (() => void) | undefined; onProgress(() => { void refreshCurrent(); }).then(fn => { dispose = fn; }); return () => dispose?.(); }, [refreshCurrent]);
+  useEffect(() => { let dispose: (() => void) | undefined; onLibrarySynced(() => { void refreshCurrent(); void refreshCollectionOverviews(); }).then(fn => { dispose = fn; }); return () => dispose?.(); }, [refreshCurrent, refreshCollectionOverviews]);
+  useEffect(() => {
+    if (!unjoinedCollection) { setCollectionPreview(null); setCollectionPreviewLoading(false); return; }
+    let cancelled = false;
+    setCollectionPreview(null);
+    setCollectionPreviewLoading(true);
+    api.previewImport([unjoinedCollection.key]).then(value => { if (!cancelled) setCollectionPreview(value); }).catch(error => { if (!cancelled) notify(String(error), 'error'); }).finally(() => { if (!cancelled) setCollectionPreviewLoading(false); });
+    return () => { cancelled = true; };
+  }, [unjoinedCollection?.key, notify]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector<HTMLInputElement>('.search-box input')?.focus(); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
 
   const openPaper = async (paper: Paper | string) => {
@@ -132,36 +160,52 @@ export default function App() {
     }
     notify(next ? '已添加星标。' : '已取消星标。', 'success');
   };
-  const openImport = (keys: string[] = []) => { setImportKeys(keys); setImportOpen(true); };
-  const joinCollection = (key: string) => { setCollection(key); setView('library'); openImport([key]); };
+  const openImport = (keys: string[] = [], startAtPreview = false, preview: ImportPreview | null = null) => {
+    setImportKeys(keys);
+    setImportStartAtPreview(startAtPreview);
+    setImportInitialPreview(preview);
+    setImportOpen(true);
+  };
+  const closeImport = () => {
+    setImportOpen(false);
+    setImportKeys([]);
+    setImportStartAtPreview(false);
+    setImportInitialPreview(null);
+    void refresh();
+    void refreshCollectionOverviews();
+  };
+  const joinCollection = (key: string) => { setCollection(key); setView('library'); openImport([key], true, collectionPreview); };
   const syncCollection = async (key: string) => {
     if (syncingCollection) return;
     setSyncingCollection(key);
     try {
       const result = await api.syncCollection(key);
-      await refresh();
-      const name = collections.find(item => item.key === key)?.name ?? '分类';
+      await Promise.all([refresh(), refreshCollectionOverviews()]);
+      const name = collectionsWithOverviews.find(item => item.key === key)?.name ?? '分类';
       notify(`“${name}”同步完成：检查 ${result.imported} 篇，${result.queued} 篇进入解析${result.skipped ? `，${result.skipped} 篇待选择主 PDF` : ''}。`, 'success');
     } catch (error) { notify(String(error), 'error'); } finally { setSyncingCollection(null); }
   };
   const syncTrash = async () => { if (!window.confirm(`即将把 ${stats.pendingSync} 篇文献移入 Zotero 回收站。此操作需要 Zotero 写授权，是否继续？`)) return; setSyncing(true); try { const count = await api.syncTrash(); await refresh(); notify(`已同步 ${count} 篇到 Zotero 回收站。`, 'success'); } catch (error) { notify(String(error), 'error'); } finally { setSyncing(false); } };
   const starredCount = allPapers.filter(paper => starredIds[paper.id] ?? readStoredStar(paper.id)).length;
   const visiblePapers = collection === 'starred' && view !== 'trash' ? papers.filter(paper => starredIds[paper.id] ?? readStoredStar(paper.id)) : papers;
-  const title = view === 'trash' ? '应用回收站' : collection === 'starred' ? '星标文献' : collection === 'unread' ? '未读文献' : collection === 'all' ? '全部文献' : collections.find(c => c.key === collection)?.name ?? '文献资源库';
+  const title = view === 'trash' ? '应用回收站' : collection === 'starred' ? '星标文献' : collection === 'unread' ? '未读文献' : collection === 'all' ? '全部文献' : currentCollection?.name ?? '文献资源库';
   const subtitle = view === 'trash' ? '本地回收不会影响 Zotero，除非你显式同步。' : '';
+  const headingCount = unjoinedCollection ? collectionPreview?.total ?? unjoinedCollection.itemCount : visiblePapers.length;
 
   return <div className="app-shell">
-    <Sidebar view={view} onView={setView} collection={collection} onCollection={setCollection} collections={collections} stats={stats} starredCount={starredCount} services={services} onImport={() => openImport()} onSync={syncCollection} syncingCollection={syncingCollection} onSettings={() => setSettingsOpen(true)} />
+    <Sidebar view={view} onView={setView} collection={collection} onCollection={setCollection} collections={collectionsWithOverviews} stats={stats} starredCount={starredCount} services={services} onImport={() => openImport()} onSync={syncCollection} syncingCollection={syncingCollection} onSettings={() => setSettingsOpen(true)} />
     <div className="workspace"><Topbar search={search} onSearch={setSearch} onSettings={() => setSettingsOpen(true)} demoMode={services.demoMode} />
       {loading ? <div className="app-loading"><div className="brand-mark">Z</div><LoaderCircle className="spin" size={20} /><span>正在打开本地研究文库</span></div> : view === 'notes' ? <NotesView papers={papers} onOpen={openPaper} notify={notify} /> : <main className={`library-page ${view === 'reader' && expandAllMode ? 'library-reading' : ''}`}>
-        <header className="page-heading library-heading"><div><span className="eyebrow">{view === 'trash' ? 'LOCAL RECYCLE BIN' : 'RESEARCH LIBRARY'}</span><h1>{title}<span className="heading-count">{visiblePapers.length}</span></h1>{subtitle && <p>{subtitle}</p>}</div>{view === 'trash' ? <button className="primary-button" disabled={!stats.pendingSync || syncing} onClick={syncTrash}>{syncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}同步到 Zotero 回收站{stats.pendingSync > 0 && <span className="button-count">{stats.pendingSync}</span>}</button> : <div className="library-heading-actions">{collections.some(item => item.key === collection && !item.joined) && <button className="secondary-button" onClick={() => joinCollection(collection)}><Import size={15} />加入 Zotero Reader</button>}</div>}</header>
-        {stats.processing > 0 && (view === 'library' || (view === 'reader' && !expandAllMode)) && <div className="processing-banner"><LoaderCircle className="spin" size={15} /><span>{stats.processing} 篇文献正在后台解析或生成解读</span><small>过程保持静默，可随时离开此页面</small></div>}
-        <PaperList papers={visiblePapers} selectedId={selected?.id} readerDetails={readerDetails} expandedIds={expandedIds} expandAllMode={expandAllMode} starredIds={starredIds} starredOnly={collection === 'starred' && view !== 'trash'} onToggleStar={toggleStar} onOpen={openPaper} onTrash={trash} onRestore={restore} onRead={toggleRead} onCloseReader={closeReader} onExpandAll={expandAll} onCollapseAll={collapseAll} onMemo={detail => { setSelected(detail); setMemoOpen(true); }} onChanged={refreshCurrent} notify={notify} trash={view === 'trash'} />
-        {!visiblePapers.length && view === 'library' && !search && collection !== 'starred' && <div className="first-run-actions"><button className="primary-button" onClick={() => openImport()}><Import size={16} />选择 Zotero 分类</button><button className="secondary-button" onClick={() => setSettingsOpen(true)}><BookOpen size={16} />检查连接</button></div>}
+        <header className="page-heading library-heading"><div><span className="eyebrow">{view === 'trash' ? 'LOCAL RECYCLE BIN' : 'RESEARCH LIBRARY'}</span><h1>{title}<span className="heading-count">{headingCount}</span></h1>{subtitle && <p>{subtitle}</p>}</div>{view === 'trash' && <button className="primary-button" disabled={!stats.pendingSync || syncing} onClick={syncTrash}>{syncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}同步到 Zotero 回收站{stats.pendingSync > 0 && <span className="button-count">{stats.pendingSync}</span>}</button>}</header>
+        {stats.processing > 0 && !unjoinedCollection && (view === 'library' || (view === 'reader' && !expandAllMode)) && <div className="processing-banner"><LoaderCircle className="spin" size={15} /><span>{stats.processing} 篇文献正在后台解析或生成解读</span><small>过程保持静默，可随时离开此页面</small></div>}
+        {unjoinedCollection ? <CollectionImportCard collection={unjoinedCollection} preview={collectionPreview} loading={collectionPreviewLoading} onJoin={() => joinCollection(unjoinedCollection.key)} /> : <>
+          <PaperList papers={visiblePapers} selectedId={selected?.id} readerDetails={readerDetails} expandedIds={expandedIds} expandAllMode={expandAllMode} starredIds={starredIds} starredOnly={collection === 'starred' && view !== 'trash'} onToggleStar={toggleStar} onOpen={openPaper} onTrash={trash} onRestore={restore} onRead={toggleRead} onCloseReader={closeReader} onExpandAll={expandAll} onCollapseAll={collapseAll} onMemo={detail => { setSelected(detail); setMemoOpen(true); }} onChanged={refreshCurrent} notify={notify} trash={view === 'trash'} />
+          {!visiblePapers.length && view === 'library' && !search && collection !== 'starred' && <div className="first-run-actions"><button className="primary-button" onClick={() => openImport()}><Import size={16} />选择 Zotero 分类</button><button className="secondary-button" onClick={() => setSettingsOpen(true)}><BookOpen size={16} />检查连接</button></div>}
+        </>}
         {view === 'trash' && <div className="trash-explainer"><Recycle size={15} /><span>恢复文献会取消待同步标记；同步成功后，Zotero 条目也会进入其回收站。</span></div>}
       </main>}
     </div>
-    {importOpen && <ImportDialog collections={collections} initialKeys={importKeys} onClose={() => { setImportOpen(false); setImportKeys([]); refresh(); }} onImported={refresh} notify={notify} />}
+    {importOpen && <ImportDialog collections={collectionsWithOverviews} initialKeys={importKeys} initialPreview={importInitialPreview} startAtPreview={importStartAtPreview} onClose={closeImport} onImported={() => { void refresh(); void refreshCollectionOverviews(); }} notify={notify} />}
     {settingsOpen && <SettingsDialog services={services} onClose={() => setSettingsOpen(false)} onChanged={refresh} notify={notify} />}
     {memoOpen && selected && <MemoDialog detail={selected} onClose={() => { setMemoOpen(false); api.detail(selected.id).then(detail => { setSelected(detail); setReaderDetails(current => ({ ...current, [detail.id]: detail })); }); }} notify={notify} />}
     {toast && <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}

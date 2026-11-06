@@ -1,9 +1,10 @@
 export type ViewName = 'library' | 'reader' | 'notes' | 'trash';
 export type PaperState = 'available' | 'missing' | 'unavailable' | 'not_started' | 'queued' | 'processing' | 'retry_wait' | 'succeeded' | 'failed' | 'generating' | 'vision_wait' | 'active' | 'trashed';
 
-export interface Collection { key: string; name: string; parentKey: string | null; itemCount: number; joined: boolean }
+export interface Collection { key: string; name: string; parentKey: string | null; itemCount: number; pdfCount: number; interpretedCount: number; joined: boolean }
+export interface CollectionOverview { key: string; total: number; withPdf: number }
 export interface Section { title: string; content: string; source?: string }
-export interface Figure { path: string; caption: string; label: string }
+export interface Figure { path: string; caption: string; label: string; source?: string }
 export interface Interpretation { id: string; itemId: string; markdownVersionId: string | null; titleZh: string; oneSentence: string; sections: Section[]; figures: Figure[]; model: string; createdAt: string }
 export interface Paper {
   id: string; zoteroKey: string; zoteroVersion: number; title: string; titleZh: string; oneSentence: string;
@@ -13,6 +14,16 @@ export interface Paper {
   interpretationId: string | null; pendingZoteroTrash: boolean; updatedAt: string; importedAt: string;
 }
 export interface PaperDetail extends Paper { interpretation: Interpretation | null; note: string }
+export interface NoteLocator {
+  version: 1;
+  sectionIndex: number;
+  sectionTitle: string;
+  exact: string;
+  prefix: string;
+  suffix: string;
+  start: number;
+  end: number;
+}
 export interface Note { id: string; itemId: string; interpretationId: string | null; title: string; content: string; locator: string | null; updatedAt: string }
 export interface QaMessage { id: string; itemId: string; role: 'user' | 'assistant'; content: string; sources: string[]; visualRefs: string[]; inference: boolean; usage: Record<string, number> | null; createdAt: string }
 export interface LibraryQuery { search?: string; collection?: string; status?: string; view?: string; sort?: string }

@@ -121,7 +121,7 @@ pub fn list_papers(db: &SharedDb, query: LibraryQuery) -> Result<Vec<Paper>> {
         values.extend(std::iter::repeat_n(needle, 5));
     }
     if let Some(collection) = query.collection.filter(|s| !s.is_empty() && s != "all") {
-        sql.push_str(" AND EXISTS (SELECT 1 FROM item_collections ic WHERE ic.item_id=items.id AND ic.collection_key=?)");
+        sql.push_str(" AND EXISTS (SELECT 1 FROM item_collections ic WHERE ic.item_id=items.id AND ic.collection_key IN (WITH RECURSIVE descendants(key) AS (SELECT ? UNION ALL SELECT c.key FROM collections c JOIN descendants d ON c.parent_key=d.key WHERE c.deleted=0) SELECT key FROM descendants))");
         values.push(collection);
     }
     match query.status.as_deref() {
@@ -181,8 +181,8 @@ pub fn get_interpretation(db: &SharedDb, id: &str) -> Result<Interpretation> {
 
 pub fn list_collections(db: &SharedDb) -> Result<Vec<Collection>> {
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
-    let mut stmt = conn.prepare("SELECT c.key,c.name,c.parent_key,COUNT(i.id) AS item_count,c.joined FROM collections c LEFT JOIN item_collections ic ON c.key=ic.collection_key LEFT JOIN items i ON i.id=ic.item_id AND i.local_state='active' WHERE c.deleted=0 GROUP BY c.key ORDER BY c.name COLLATE NOCASE")?;
-    let rows = stmt.query_map([], |r| Ok(Collection { key:r.get(0)?, name:r.get(1)?, parent_key:r.get(2)?, item_count:r.get(3)?, joined:r.get::<_,i64>(4)?!=0 }))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut stmt = conn.prepare("WITH RECURSIVE collection_tree(root_key,key) AS (SELECT key,key FROM collections WHERE deleted=0 UNION ALL SELECT ct.root_key,c.key FROM collection_tree ct JOIN collections c ON c.parent_key=ct.key WHERE c.deleted=0) SELECT c.key,c.name,c.parent_key,COUNT(DISTINCT i.id),COUNT(DISTINCT CASE WHEN i.pdf_state='available' THEN i.id END),COUNT(DISTINCT CASE WHEN i.pdf_state='available' AND i.interpretation_id IS NOT NULL THEN i.id END),c.joined FROM collections c LEFT JOIN collection_tree ct ON ct.root_key=c.key LEFT JOIN item_collections ic ON ic.collection_key=ct.key LEFT JOIN items i ON i.id=ic.item_id AND i.local_state='active' WHERE c.deleted=0 GROUP BY c.key ORDER BY c.name COLLATE NOCASE")?;
+    let rows = stmt.query_map([], |r| Ok(Collection { key:r.get(0)?, name:r.get(1)?, parent_key:r.get(2)?, item_count:r.get(3)?, pdf_count:r.get(4)?, interpreted_count:r.get(5)?, joined:r.get::<_,i64>(6)?!=0 }))?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
 }
 
@@ -299,11 +299,48 @@ pub fn save_note(db: &SharedDb, item_id: &str, content: &str) -> Result<()> {
     Ok(())
 }
 
+fn note_from_row(row: &Row<'_>) -> rusqlite::Result<Note> {
+    Ok(Note{id:row.get("id")?,item_id:row.get("item_id")?,interpretation_id:row.get("interpretation_id")?,title:row.get("title")?,content:row.get("content")?,locator:row.get("locator")?,updated_at:row.get("updated_at")?})
+}
+
+pub fn create_anchored_note(db: &SharedDb, item_id: &str, interpretation_id: &str, content: &str, locator: &NoteLocator) -> Result<String> {
+    if content.trim().is_empty() { anyhow::bail!("备忘内容不能为空"); }
+    if locator.exact.trim().is_empty() || locator.end < locator.start { anyhow::bail!("选段定位无效"); }
+    let id = uuid::Uuid::new_v4().to_string();
+    let now = Utc::now().to_rfc3339();
+    let locator_json = serde_json::to_string(locator)?;
+    let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
+    conn.execute("INSERT INTO notes(id,item_id,interpretation_id,content,locator,created_at,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?6)",params![id,item_id,interpretation_id,content.trim(),locator_json,now])?;
+    Ok(id)
+}
+
+pub fn list_item_notes(db: &SharedDb, item_id: &str) -> Result<Vec<Note>> {
+    let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
+    let mut stmt = conn.prepare("SELECT * FROM notes WHERE item_id=?1 AND locator IS NOT NULL AND deleted=0 ORDER BY created_at")?;
+    let rows = stmt.query_map([item_id], note_from_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+pub fn update_anchored_note(db: &SharedDb, note_id: &str, content: &str) -> Result<()> {
+    if content.trim().is_empty() { anyhow::bail!("备忘内容不能为空"); }
+    let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
+    let changed = conn.execute("UPDATE notes SET content=?1,updated_at=?2 WHERE id=?3 AND locator IS NOT NULL AND deleted=0",params![content.trim(),Utc::now().to_rfc3339(),note_id])?;
+    if changed == 0 { anyhow::bail!("选段备忘不存在"); }
+    Ok(())
+}
+
+pub fn delete_anchored_note(db: &SharedDb, note_id: &str) -> Result<()> {
+    let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
+    let changed = conn.execute("UPDATE notes SET deleted=1,updated_at=?1 WHERE id=?2 AND locator IS NOT NULL AND deleted=0",params![Utc::now().to_rfc3339(),note_id])?;
+    if changed == 0 { anyhow::bail!("选段备忘不存在"); }
+    Ok(())
+}
+
 pub fn list_notes(db: &SharedDb, search: Option<&str>) -> Result<Vec<Note>> {
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
     let pattern = format!("%{}%",search.unwrap_or_default());
-    let mut stmt = conn.prepare("SELECT * FROM notes WHERE deleted=0 AND content LIKE ?1 ORDER BY updated_at DESC")?;
-    let rows = stmt.query_map([pattern],|r|Ok(Note{id:r.get("id")?,item_id:r.get("item_id")?,interpretation_id:r.get("interpretation_id")?,title:r.get("title")?,content:r.get("content")?,locator:r.get("locator")?,updated_at:r.get("updated_at")?}))?.collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut stmt = conn.prepare("SELECT * FROM notes WHERE deleted=0 AND (content LIKE ?1 OR locator LIKE ?1) ORDER BY updated_at DESC")?;
+    let rows = stmt.query_map([pattern], note_from_row)?.collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(rows)
 }
 
@@ -392,13 +429,32 @@ mod tests {
     #[test]
     fn joined_state_is_explicit_even_for_empty_collections(){
         let db=open(Path::new(":memory:")).unwrap();
-        for key in ["JOINED","RELATED"]{upsert_collection(&db,&Collection{key:key.into(),name:key.into(),parent_key:None,item_count:0,joined:false},0).unwrap();}
+        for key in ["JOINED","RELATED"]{upsert_collection(&db,&Collection{key:key.into(),name:key.into(),parent_key:None,item_count:0,pdf_count:0,interpreted_count:0,joined:false},0).unwrap();}
         let id=upsert_paper(&db,"RELATED-PAPER",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         set_item_collections(&db,&id,&["RELATED".into()]).unwrap();
         mark_collections_joined(&db,&BTreeSet::from(["JOINED".into()])).unwrap();
         let collections=list_collections(&db).unwrap();
         assert!(collections.iter().find(|c|c.key=="JOINED").unwrap().joined);
         assert!(!collections.iter().find(|c|c.key=="RELATED").unwrap().joined);
+    }
+
+    #[test]
+    fn nested_collection_queries_and_stats_include_descendants_without_duplicates(){
+        let db=open(Path::new(":memory:")).unwrap();
+        upsert_collection(&db,&Collection{key:"PARENT".into(),name:"Parent".into(),parent_key:None,item_count:0,pdf_count:0,interpreted_count:0,joined:true},0).unwrap();
+        upsert_collection(&db,&Collection{key:"CHILD".into(),name:"Child".into(),parent_key:Some("PARENT".into()),item_count:0,pdf_count:0,interpreted_count:0,joined:true},0).unwrap();
+        let direct=upsert_paper(&db,"DIRECT",1,"Direct",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        let nested=upsert_paper(&db,"NESTED",1,"Nested",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        set_item_collections(&db,&direct,&["PARENT".into()]).unwrap();
+        set_item_collections(&db,&nested,&["PARENT".into(),"CHILD".into()]).unwrap();
+        set_main_pdf(&db,&nested,Some("PDF"),false).unwrap();
+        save_interpretation(&db,&nested,None,"嵌套文献","一句话",&[],&[],"test").unwrap();
+        let query=|key:&str|list_papers(&db,LibraryQuery{search:None,collection:Some(key.into()),status:None,view:None,sort:None}).unwrap();
+        assert_eq!(query("PARENT").len(),2);
+        assert_eq!(query("CHILD").len(),1);
+        let collections=list_collections(&db).unwrap();
+        let parent=collections.iter().find(|collection|collection.key=="PARENT").unwrap();
+        assert_eq!((parent.item_count,parent.pdf_count,parent.interpreted_count),(2,1,1));
     }
 
     #[test]
