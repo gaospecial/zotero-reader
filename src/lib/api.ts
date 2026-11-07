@@ -48,10 +48,11 @@ export const api = {
     localAnchoredNotes.push({ id, itemId, interpretationId, title: '', content: content.trim(), locator: JSON.stringify(locator), updatedAt: new Date().toISOString() });
     return id;
   }),
-  updateAnchoredNote: (noteId: string, content: string) => command<void>('update_anchored_note', { noteId, content }, () => {
+  updateAnchoredNote: (noteId: string, content: string, locator: NoteLocator) => command<void>('update_anchored_note', { noteId, content, locator }, () => {
     const note = localAnchoredNotes.find(item => item.id === noteId);
     if (!note) throw new Error('选段备忘不存在');
     note.content = content.trim();
+    note.locator = JSON.stringify(locator);
     note.updatedAt = new Date().toISOString();
   }),
   deleteAnchoredNote: (noteId: string) => command<void>('delete_anchored_note', { noteId }, () => {

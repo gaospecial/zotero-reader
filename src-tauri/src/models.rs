@@ -112,6 +112,16 @@ pub struct Note {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum HighlightColor {
+    #[default]
+    Yellow,
+    Green,
+    Blue,
+    Pink,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteLocator {
@@ -123,6 +133,8 @@ pub struct NoteLocator {
     pub suffix: String,
     pub start: usize,
     pub end: usize,
+    #[serde(default)]
+    pub color: HighlightColor,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

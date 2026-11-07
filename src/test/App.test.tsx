@@ -55,6 +55,42 @@ describe('Zotero Reader 工作台', () => {
     expect(starNavigation).not.toHaveTextContent('1');
   });
 
+  it('侧栏可通过右边框调宽并折叠为可恢复的图标栏', async () => {
+    render(<App />);
+    const handle = screen.getByRole('separator', { name: '调整左侧栏宽度' });
+    handle.setPointerCapture = vi.fn();
+    handle.releasePointerCapture = vi.fn();
+    handle.hasPointerCapture = vi.fn(() => true);
+    const shell = document.querySelector('.app-shell')!;
+    const initialWidth = Number(handle.getAttribute('aria-valuenow'));
+    const pointer = (type: string, clientX: number) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX });
+      Object.defineProperty(event, 'pointerId', { value: 1 });
+      return event;
+    };
+    fireEvent(handle, pointer('pointerdown', 200));
+    fireEvent(handle, pointer('pointermove', 320));
+    expect(handle).toHaveAttribute('aria-valuenow', String(initialWidth + 120));
+    fireEvent(handle, pointer('pointermove', -1000));
+    expect(handle).toHaveAttribute('aria-valuenow', '200');
+    fireEvent(handle, pointer('pointerup', -1000));
+    fireEvent.keyDown(handle, { key: 'End' });
+    expect(handle).toHaveAttribute('aria-valuenow', '360');
+    fireEvent.keyDown(handle, { key: 'Home' });
+    expect(handle).toHaveAttribute('aria-valuenow', '200');
+    fireEvent.keyDown(handle, { key: 'ArrowRight' });
+    expect(handle).toHaveAttribute('aria-valuenow', '210');
+    expect(window.localStorage.getItem('reader-sidebar-width')).toBe('210');
+
+    fireEvent.click(screen.getByRole('button', { name: '收起左侧栏' }));
+    expect(shell).toHaveClass('sidebar-collapsed');
+    expect(screen.queryByRole('separator', { name: '调整左侧栏宽度' })).not.toBeInTheDocument();
+    expect(window.localStorage.getItem('reader-sidebar-collapsed')).toBe('true');
+    fireEvent.click(screen.getByRole('button', { name: '展开左侧栏' }));
+    expect(shell).not.toHaveClass('sidebar-collapsed');
+    expect(screen.getByRole('separator', { name: '调整左侧栏宽度' })).toHaveAttribute('aria-valuenow', '210');
+  });
+
   it('打开未读文献后列表与侧栏计数同步减少', async () => {
     const papers = demoPapers.filter(paper => paper.readState === 'unread').map(paper => ({ ...paper }));
     const base = await api.bootstrap();
@@ -439,11 +475,15 @@ describe('Zotero Reader 工作台', () => {
   it('分类树显示文献、全文和已解读三项统计，父分类包含子分类文献', async () => {
     render(<App />);
     const parent = await screen.findByRole('button', { name: '人工智能与教育 4 篇文献，4 篇有 PDF 全文，4 篇已解读' });
-    expect(screen.getByRole('img', { name: '统计顺序：全部文献、PDF 全文、已解读' }).querySelectorAll('svg')).toHaveLength(3);
+    expect(screen.queryByRole('img', { name: '统计顺序：全部文献、PDF 全文、已解读' })).not.toBeInTheDocument();
+    expect(document.querySelector('.section-label')?.nextElementSibling).toHaveClass('collection-tree');
     expect(screen.queryByRole('button', { name: '添加分类' })).not.toBeInTheDocument();
-    expect(parent.querySelectorAll('.collection-stats>span')).toHaveLength(3);
-    expect(parent.querySelectorAll('.collection-stats svg')).toHaveLength(0);
-    expect(parent.querySelector('.collection-stats')).toHaveTextContent('4/4/4');
+    const stats = parent.querySelector('.collection-stats');
+    const values = stats?.querySelectorAll(':scope>span');
+    expect(values).toHaveLength(3);
+    expect(Array.from(values ?? []).map(value => value.getAttribute('data-tooltip'))).toEqual(['全部文献', '有 PDF 全文', '已解读']);
+    expect(stats?.querySelectorAll('svg')).toHaveLength(0);
+    expect(stats).toHaveTextContent('4/4/4');
     fireEvent.click(parent);
     await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(4));
     expect(screen.getByText('从“给答案”到“促思考”：智能辅导反馈设计的实证研究')).toBeInTheDocument();

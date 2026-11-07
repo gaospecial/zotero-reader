@@ -304,7 +304,6 @@ fn note_from_row(row: &Row<'_>) -> rusqlite::Result<Note> {
 }
 
 pub fn create_anchored_note(db: &SharedDb, item_id: &str, interpretation_id: &str, content: &str, locator: &NoteLocator) -> Result<String> {
-    if content.trim().is_empty() { anyhow::bail!("备忘内容不能为空"); }
     if locator.exact.trim().is_empty() || locator.end < locator.start { anyhow::bail!("选段定位无效"); }
     let id = uuid::Uuid::new_v4().to_string();
     let now = Utc::now().to_rfc3339();
@@ -321,10 +320,11 @@ pub fn list_item_notes(db: &SharedDb, item_id: &str) -> Result<Vec<Note>> {
     Ok(rows)
 }
 
-pub fn update_anchored_note(db: &SharedDb, note_id: &str, content: &str) -> Result<()> {
-    if content.trim().is_empty() { anyhow::bail!("备忘内容不能为空"); }
+pub fn update_anchored_note(db: &SharedDb, note_id: &str, content: &str, locator: &NoteLocator) -> Result<()> {
+    if locator.exact.trim().is_empty() || locator.end < locator.start { anyhow::bail!("选段定位无效"); }
+    let locator_json = serde_json::to_string(locator)?;
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
-    let changed = conn.execute("UPDATE notes SET content=?1,updated_at=?2 WHERE id=?3 AND locator IS NOT NULL AND deleted=0",params![content.trim(),Utc::now().to_rfc3339(),note_id])?;
+    let changed = conn.execute("UPDATE notes SET content=?1,locator=?2,updated_at=?3 WHERE id=?4 AND locator IS NOT NULL AND deleted=0",params![content.trim(),locator_json,Utc::now().to_rfc3339(),note_id])?;
     if changed == 0 { anyhow::bail!("选段备忘不存在"); }
     Ok(())
 }
@@ -424,6 +424,36 @@ mod tests {
         let id = upsert_paper(&db,"N1",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         save_note(&db,&id,"独特的研究方法").unwrap();
         assert_eq!(list_papers(&db,LibraryQuery{search:Some("研究方法".into()),collection:None,status:None,view:None,sort:None}).unwrap().len(),1);
+    }
+
+    #[test]
+    fn anchored_notes_crud_preserves_general_note_and_searches_quote() {
+        let db = open(Path::new(":memory:")).unwrap();
+        let id = upsert_paper(&db,"ANCHOR",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        save_note(&db,&id,"整篇总备忘").unwrap();
+        let locator = NoteLocator{version:1,section_index:2,section_title:"研究方法".into(),exact:"随机分配的准实验设计".into(),prefix:"研究采用".into(),suffix:"并记录过程".into(),start:4,end:15};
+        let note_id = create_anchored_note(&db,&id,"interpretation-v1","需要复核随机化过程",&locator).unwrap();
+        let notes = list_item_notes(&db,&id).unwrap();
+        assert_eq!(notes.len(),1);
+        assert_eq!(notes[0].interpretation_id.as_deref(),Some("interpretation-v1"));
+        assert_eq!(get_detail(&db,&id).unwrap().note,"整篇总备忘");
+        update_anchored_note(&db,&note_id,"已核对分配隐藏").unwrap();
+        assert_eq!(list_item_notes(&db,&id).unwrap()[0].content,"已核对分配隐藏");
+        assert_eq!(list_notes(&db,Some("准实验设计")).unwrap().len(),1);
+        delete_anchored_note(&db,&note_id).unwrap();
+        assert!(list_item_notes(&db,&id).unwrap().is_empty());
+        assert_eq!(get_detail(&db,&id).unwrap().note,"整篇总备忘");
+    }
+
+    #[test]
+    fn anchored_notes_reject_empty_content_and_missing_records() {
+        let db = open(Path::new(":memory:")).unwrap();
+        let id = upsert_paper(&db,"ANCHOR-VALIDATION",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        let locator = NoteLocator{version:1,section_index:0,section_title:"基本信息".into(),exact:"有效引用".into(),prefix:String::new(),suffix:String::new(),start:0,end:4};
+        assert!(create_anchored_note(&db,&id,"interpretation-v1"," ",&locator).is_err());
+        assert!(create_anchored_note(&db,&id,"interpretation-v1","有效备忘",&NoteLocator{exact:String::new(),..locator}).is_err());
+        assert!(update_anchored_note(&db,"missing","内容").is_err());
+        assert!(delete_anchored_note(&db,"missing").is_err());
     }
 
     #[test]

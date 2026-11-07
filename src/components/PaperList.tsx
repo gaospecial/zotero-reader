@@ -36,11 +36,13 @@ interface PaperListProps {
   onCollapseAll: () => void;
   onMemo: (detail: PaperDetail) => void;
   onChanged: () => void;
+  noteJump?: { paperId: string; noteId: string } | null;
+  onNoteJumpHandled: () => void;
   notify: (message: string, tone?: 'success' | 'error' | 'info') => void;
   trash?: boolean;
 }
 
-export default function PaperList({ papers, selectedId, readerDetails, expandedIds, expandAllMode, starredIds, starredOnly = false, onToggleStar, onOpen, onTrash, onRestore, onRead, onCloseReader, onExpandAll, onCollapseAll, onMemo, onChanged, notify, trash = false }: PaperListProps) {
+export default function PaperList({ papers, selectedId, readerDetails, expandedIds, expandAllMode, starredIds, starredOnly = false, onToggleStar, onOpen, onTrash, onRestore, onRead, onCloseReader, onExpandAll, onCollapseAll, onMemo, onChanged, noteJump, onNoteJumpHandled, notify, trash = false }: PaperListProps) {
   const [sort, setSort] = useState('最近更新');
   const [filter, setFilter] = useState('全部');
   const [scrollTop, setScrollTop] = useState(0);
@@ -90,7 +92,7 @@ export default function PaperList({ papers, selectedId, readerDetails, expandedI
     const detail = readerDetails[paper.id];
     if (!detail || !expandedIds.includes(paper.id)) return null;
     const index = filtered.findIndex(item => item.id === paper.id);
-    return <Reader key={detail.id} detail={detail} active={paper.id === selectedId} fontSize={readerFontSize} starred={isStarred(paper)} onToggleStar={() => onToggleStar(paper)} onBack={() => closeReader(paper)} onTrash={() => onTrash(paper.id)} onMemo={() => onMemo(detail)} onChanged={onChanged} onRead={() => onRead(detail)} onPrevious={index > 0 ? () => openReader(filtered[index - 1]) : undefined} onNext={index < filtered.length - 1 ? () => openReader(filtered[index + 1]) : undefined} position={{ current: index + 1, total: filtered.length }} notify={notify} />;
+    return <Reader key={detail.id} detail={detail} active={paper.id === selectedId} fontSize={readerFontSize} starred={isStarred(paper)} onToggleStar={() => onToggleStar(paper)} onBack={() => closeReader(paper)} onTrash={() => onTrash(paper.id)} onMemo={() => onMemo(detail)} onChanged={onChanged} onRead={() => onRead(detail)} onPrevious={index > 0 ? () => openReader(filtered[index - 1]) : undefined} onNext={index < filtered.length - 1 ? () => openReader(filtered[index + 1]) : undefined} position={{ current: index + 1, total: filtered.length }} jumpToNoteId={noteJump?.paperId === paper.id ? noteJump.noteId : undefined} onNoteJumpHandled={onNoteJumpHandled} notify={notify} />;
   };
   return <section className={`library-panel ${hasExpandedReaders ? 'is-reading' : ''} ${comfortable ? 'is-comfortable' : ''}`} style={{ '--reader-font-size': `${readerFontSize}px` } as React.CSSProperties}>
     <div className="library-toolbar"><div className="filter-tabs">{['全部', '已读', '未读', '处理失败'].map(name => <button key={name} className={filter === name ? 'active' : ''} onClick={() => { setFilter(name); setScrollTop(0); }}>{name}{name === '全部' && <span>{papers.length}</span>}</button>)}</div><div className="view-tools"><button className="sort-button" onClick={() => setSort(sort === '最近更新' ? '标题排序' : '最近更新')}><ArrowUpDown size={14} />{sort}<ChevronDown size={12} /></button><span className="tool-divider" /><button className={!comfortable ? 'active' : ''} onClick={onCollapseAll} aria-label="紧凑视图" aria-pressed={!comfortable} title="折叠全部阅读区"><Rows3 size={16} /><span>紧凑</span></button><button className={comfortable ? 'active' : ''} onClick={() => onExpandAll(filtered)} aria-label="舒展视图" aria-pressed={comfortable} title="展开当前筛选结果的全部阅读区"><Grid2X2 size={15} /><span>舒展</span></button><span className="tool-divider" /><button onClick={() => setReaderFontSize(size => Math.max(10, size - 1))} disabled={readerFontSize === 10} aria-label="减小阅读字号" title={`减小正文字号（当前 ${readerFontSize}px）`}><Minus size={12} /><span>A</span></button><span className="reader-font-size-value" aria-live="polite">{readerFontSize}px</span><button onClick={() => setReaderFontSize(size => Math.min(22, size + 1))} disabled={readerFontSize === 22} aria-label="增大阅读字号" title={`增大正文字号（当前 ${readerFontSize}px）`}><Plus size={12} /><span>A</span></button></div></div>

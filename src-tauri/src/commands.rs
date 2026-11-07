@@ -19,7 +19,7 @@ pub async fn get_bootstrap(state:State<'_,Arc<AppState>>)->CmdResult<Bootstrap>{
 #[tauri::command]pub fn save_note(state:State<'_,Arc<AppState>>,item_id:String,content:String)->CmdResult<()>{db::save_note(&state.db,&item_id,&content).map_err(err)}
 #[tauri::command]pub fn list_item_notes(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<Vec<Note>>{db::list_item_notes(&state.db,&item_id).map_err(err)}
 #[tauri::command]pub fn create_anchored_note(state:State<'_,Arc<AppState>>,item_id:String,interpretation_id:String,content:String,locator:NoteLocator)->CmdResult<String>{db::create_anchored_note(&state.db,&item_id,&interpretation_id,&content,&locator).map_err(err)}
-#[tauri::command]pub fn update_anchored_note(state:State<'_,Arc<AppState>>,note_id:String,content:String)->CmdResult<()>{db::update_anchored_note(&state.db,&note_id,&content).map_err(err)}
+#[tauri::command]pub fn update_anchored_note(state:State<'_,Arc<AppState>>,note_id:String,content:String,locator:NoteLocator)->CmdResult<()>{db::update_anchored_note(&state.db,&note_id,&content,&locator).map_err(err)}
 #[tauri::command]pub fn delete_anchored_note(state:State<'_,Arc<AppState>>,note_id:String)->CmdResult<()>{db::delete_anchored_note(&state.db,&note_id).map_err(err)}
 #[tauri::command]pub fn list_qa(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<Vec<QaMessage>>{db::list_qa(&state.db,&item_id).map_err(err)}
 #[tauri::command]pub fn clear_qa(state:State<'_,Arc<AppState>>,item_id:String)->CmdResult<()>{db::clear_qa(&state.db,&item_id).map_err(err)}

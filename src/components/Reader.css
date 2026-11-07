@@ -872,6 +872,10 @@
   to { opacity: 1; transform: none; }
 }
 
+@keyframes memo-highlight-pulse {
+  50% { background: #f4c95d; box-shadow: 0 0 0 5px rgba(244, 201, 93, .24); }
+}
+
 @media (max-width: 1200px) {
   .article-layout { padding: 15px 22px 0; }
   .article-action-bar .zotero-open { padding-right: 0; }

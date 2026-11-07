@@ -14,6 +14,7 @@ export interface Paper {
   interpretationId: string | null; pendingZoteroTrash: boolean; updatedAt: string; importedAt: string;
 }
 export interface PaperDetail extends Paper { interpretation: Interpretation | null; note: string }
+export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink';
 export interface NoteLocator {
   version: 1;
   sectionIndex: number;
@@ -23,6 +24,7 @@ export interface NoteLocator {
   suffix: string;
   start: number;
   end: number;
+  color: HighlightColor;
 }
 export interface Note { id: string; itemId: string; interpretationId: string | null; title: string; content: string; locator: string | null; updatedAt: string }
 export interface QaMessage { id: string; itemId: string; role: 'user' | 'assistant'; content: string; sources: string[]; visualRefs: string[]; inference: boolean; usage: Record<string, number> | null; createdAt: string }

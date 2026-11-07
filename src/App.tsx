@@ -41,7 +41,14 @@ export default function App() {
   const [collectionPreviewLoading, setCollectionPreviewLoading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [memoOpen, setMemoOpen] = useState(false);
+  const [noteJump, setNoteJump] = useState<{ paperId: string; noteId: string } | null>(null);
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null);
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    const saved = Number(window.localStorage.getItem('reader-sidebar-width'));
+    if (saved) return Math.max(200, Math.min(360, Math.round(saved)));
+    return window.innerWidth <= 1200 ? 198 : 224;
+  });
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => window.localStorage.getItem('reader-sidebar-collapsed') === 'true');
   const notify = useCallback((message: string, tone: 'success' | 'error' | 'info' = 'info') => setToast({ message, tone }), []);
 
   const refreshMeta = useCallback(async () => {
@@ -94,14 +101,20 @@ export default function App() {
     return () => { cancelled = true; };
   }, [unjoinedCollection?.key, notify]);
   useEffect(() => { const handler = (event: KeyboardEvent) => { if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); document.querySelector<HTMLInputElement>('.search-box input')?.focus(); } }; window.addEventListener('keydown', handler); return () => window.removeEventListener('keydown', handler); }, []);
+  useEffect(() => {
+    window.localStorage.setItem('reader-sidebar-width', String(sidebarWidth));
+    window.localStorage.setItem('reader-sidebar-collapsed', String(sidebarCollapsed));
+  }, [sidebarWidth, sidebarCollapsed]);
 
-  const openPaper = async (paper: Paper | string) => {
+  const openPaper = async (paper: Paper | string, additiveOrNote?: boolean | string) => {
     const id = typeof paper === 'string' ? paper : paper.id;
+    const noteId = typeof additiveOrNote === 'string' ? additiveOrNote : undefined;
     try {
       const detail = await api.detail(id);
       setReaderDetails(current => ({ ...current, [id]: detail }));
       setExpandedIds(current => [...new Set([...current, id])]);
       setSelected(detail);
+      setNoteJump(noteId ? { paperId: id, noteId } : null);
       setView('reader');
       if (detail.readState === 'unread') {
         await api.setRead(id, 'reading');
@@ -192,14 +205,14 @@ export default function App() {
   const subtitle = view === 'trash' ? '本地回收不会影响 Zotero，除非你显式同步。' : '';
   const headingCount = unjoinedCollection ? collectionPreview?.total ?? unjoinedCollection.itemCount : visiblePapers.length;
 
-  return <div className="app-shell">
-    <Sidebar view={view} onView={setView} collection={collection} onCollection={setCollection} collections={collectionsWithOverviews} stats={stats} starredCount={starredCount} services={services} onImport={() => openImport()} onSync={syncCollection} syncingCollection={syncingCollection} onSettings={() => setSettingsOpen(true)} />
+  return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
+    <Sidebar view={view} onView={setView} collection={collection} onCollection={setCollection} collections={collectionsWithOverviews} stats={stats} starredCount={starredCount} services={services} onImport={() => openImport()} onSync={syncCollection} syncingCollection={syncingCollection} onSettings={() => setSettingsOpen(true)} width={sidebarWidth} collapsed={sidebarCollapsed} onWidthChange={width => setSidebarWidth(Math.max(200, Math.min(360, Math.round(width))))} onToggleCollapsed={() => setSidebarCollapsed(value => !value)} />
     <div className="workspace"><Topbar search={search} onSearch={setSearch} onSettings={() => setSettingsOpen(true)} demoMode={services.demoMode} />
-      {loading ? <div className="app-loading"><div className="brand-mark">Z</div><LoaderCircle className="spin" size={20} /><span>正在打开本地研究文库</span></div> : view === 'notes' ? <NotesView papers={papers} onOpen={openPaper} notify={notify} /> : <main className={`library-page ${view === 'reader' && expandAllMode ? 'library-reading' : ''}`}>
+      {loading ? <div className="app-loading"><div className="brand-mark">Z</div><LoaderCircle className="spin" size={20} /><span>正在打开本地研究文库</span></div> : view === 'notes' ? <NotesView papers={allPapers} onOpen={openPaper} notify={notify} /> : <main className={`library-page ${view === 'reader' && expandAllMode ? 'library-reading' : ''}`}>
         <header className="page-heading library-heading"><div><span className="eyebrow">{view === 'trash' ? 'LOCAL RECYCLE BIN' : 'RESEARCH LIBRARY'}</span><h1>{title}<span className="heading-count">{headingCount}</span></h1>{subtitle && <p>{subtitle}</p>}</div>{view === 'trash' && <button className="primary-button" disabled={!stats.pendingSync || syncing} onClick={syncTrash}>{syncing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}同步到 Zotero 回收站{stats.pendingSync > 0 && <span className="button-count">{stats.pendingSync}</span>}</button>}</header>
         {stats.processing > 0 && !unjoinedCollection && (view === 'library' || (view === 'reader' && !expandAllMode)) && <div className="processing-banner"><LoaderCircle className="spin" size={15} /><span>{stats.processing} 篇文献正在后台解析或生成解读</span><small>过程保持静默，可随时离开此页面</small></div>}
         {unjoinedCollection ? <CollectionImportCard collection={unjoinedCollection} preview={collectionPreview} loading={collectionPreviewLoading} onJoin={() => joinCollection(unjoinedCollection.key)} /> : <>
-          <PaperList papers={visiblePapers} selectedId={selected?.id} readerDetails={readerDetails} expandedIds={expandedIds} expandAllMode={expandAllMode} starredIds={starredIds} starredOnly={collection === 'starred' && view !== 'trash'} onToggleStar={toggleStar} onOpen={openPaper} onTrash={trash} onRestore={restore} onRead={toggleRead} onCloseReader={closeReader} onExpandAll={expandAll} onCollapseAll={collapseAll} onMemo={detail => { setSelected(detail); setMemoOpen(true); }} onChanged={refreshCurrent} notify={notify} trash={view === 'trash'} />
+          <PaperList papers={visiblePapers} selectedId={selected?.id} readerDetails={readerDetails} expandedIds={expandedIds} expandAllMode={expandAllMode} starredIds={starredIds} starredOnly={collection === 'starred' && view !== 'trash'} onToggleStar={toggleStar} onOpen={openPaper} onTrash={trash} onRestore={restore} onRead={toggleRead} onCloseReader={closeReader} onExpandAll={expandAll} onCollapseAll={collapseAll} onMemo={detail => { setSelected(detail); setMemoOpen(true); }} onChanged={refreshCurrent} noteJump={noteJump} onNoteJumpHandled={() => setNoteJump(null)} notify={notify} trash={view === 'trash'} />
           {!visiblePapers.length && view === 'library' && !search && collection !== 'starred' && <div className="first-run-actions"><button className="primary-button" onClick={() => openImport()}><Import size={16} />选择 Zotero 分类</button><button className="secondary-button" onClick={() => setSettingsOpen(true)}><BookOpen size={16} />检查连接</button></div>}
         </>}
         {view === 'trash' && <div className="trash-explainer"><Recycle size={15} /><span>恢复文献会取消待同步标记；同步成功后，Zotero 条目也会进入其回收站。</span></div>}

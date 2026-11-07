@@ -1,7 +1,14 @@
-import type { Note, NoteLocator } from '../types';
+import type { HighlightColor, Note, NoteLocator } from '../types';
 
 const BLOCK_SELECTOR = 'p,li,blockquote,h1,h2,h3,h4,h5,h6,pre,td,th,figcaption';
 const CONTEXT_LENGTH = 40;
+
+export const HIGHLIGHT_COLOR_OPTIONS: { color: HighlightColor; label: string }[] = [
+  { color: 'yellow', label: '黄色' },
+  { color: 'green', label: '绿色' },
+  { color: 'blue', label: '蓝色' },
+  { color: 'pink', label: '粉色' },
+];
 
 interface CharacterPosition {
   node: Text;
@@ -26,7 +33,8 @@ export function parseNoteLocator(value: string | null): NoteLocator | null {
     if (locator.version !== 1 || typeof locator.sectionIndex !== 'number' || typeof locator.sectionTitle !== 'string'
       || typeof locator.exact !== 'string' || !locator.exact || typeof locator.prefix !== 'string' || typeof locator.suffix !== 'string'
       || typeof locator.start !== 'number' || typeof locator.end !== 'number') return null;
-    return locator as NoteLocator;
+    const color = HIGHLIGHT_COLOR_OPTIONS.some(option => option.color === locator.color) ? locator.color! : 'yellow';
+    return { ...locator, color } as NoteLocator;
   } catch {
     return null;
   }
@@ -125,7 +133,7 @@ function positionOffset(model: TextModel, node: Node, offset: number): number | 
   return null;
 }
 
-export function createNoteLocator(root: HTMLElement, range: Range, sectionIndex: number, sectionTitle: string): NoteLocator | null {
+export function createNoteLocator(root: HTMLElement, range: Range, sectionIndex: number, sectionTitle: string, color: HighlightColor = 'yellow'): NoteLocator | null {
   const model = buildTextModel(root);
   let start = positionOffset(model, range.startContainer, range.startOffset);
   let end = positionOffset(model, range.endContainer, range.endOffset);
@@ -149,6 +157,7 @@ export function createNoteLocator(root: HTMLElement, range: Range, sectionIndex:
     suffix: model.text.slice(end, end + CONTEXT_LENGTH),
     start,
     end,
+    color,
   };
 }
 
@@ -214,12 +223,14 @@ export function applyNoteHighlights(root: HTMLElement, notes: Note[]): Set<strin
       range.setStart(node, interval.start);
       range.setEnd(node, interval.end);
       const mark = document.createElement('mark');
+      const content = interval.note.content.trim();
       mark.className = 'memo-highlight';
       mark.dataset.noteId = interval.note.id;
+      mark.dataset.color = parseNoteLocator(interval.note.locator)?.color ?? 'yellow';
       mark.tabIndex = 0;
       mark.setAttribute('role', 'button');
-      mark.setAttribute('aria-label', `查看选段备忘：${interval.note.content.slice(0, 40)}`);
-      mark.title = interval.note.content;
+      mark.setAttribute('aria-label', content ? `查看选段备忘：${content.slice(0, 40)}` : '查看选段高亮');
+      mark.title = content || '选段高亮';
       mark.appendChild(range.extractContents());
       range.insertNode(mark);
       applied.push(interval);
