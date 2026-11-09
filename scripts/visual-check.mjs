@@ -48,9 +48,10 @@ try {
   await figureBorder.waitFor();
   const initialFigure = await figure.evaluate(element => ({
     width: element.getBoundingClientRect().width,
-    position: getComputedStyle(element).position,
+    float: getComputedStyle(element).float,
+    insideMain: Boolean(element.closest('.article-main')),
   }));
-  if (initialFigure.position !== 'sticky' || Math.abs(initialFigure.width - 420) > 1) throw new Error('论文配图默认 420px 右侧轮播栏布局异常');
+  if (initialFigure.float !== 'right' || !initialFigure.insideMain || Math.abs(initialFigure.width - 420) > 1) throw new Error('论文配图默认 420px 文内右侧环绕布局异常');
   const dragFigure = async delta => {
     const borderRect = await figureBorder.boundingBox();
     const startX = borderRect.x + borderRect.width / 2;

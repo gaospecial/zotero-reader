@@ -354,6 +354,16 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
             {detail.tags.length > 0 && <div className="article-tags">{detail.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
           </header>
 
+          {figure && <aside ref={figureRef} className="article-figure" aria-label="论文配图" style={{ '--figure-float-top': `${figureFloatPosition.top}px`, '--figure-float-right': `${figureFloatPosition.right}px`, visibility: figureFloating && !figureFloatPosition.visible ? 'hidden' : undefined } as CSSProperties}>
+            <div className="figure-resize-handle" role="separator" aria-label="调整论文配图宽度" aria-orientation="vertical" aria-valuemin={280} aria-valuemax={720} aria-valuenow={figureWidth} aria-valuetext={`${figureWidth} 像素`} title="拖动左边框调整图片宽度" tabIndex={0} onPointerDown={startFigureResize} onPointerMove={moveFigureResize} onPointerUp={endFigureResize} onPointerCancel={endFigureResize} onKeyDown={resizeFigureWithKeyboard}><span /></div>
+            <div className="article-figure-top"><span>{figure.label || 'FIGURE'}</span><span aria-live="polite">{figureIndex + 1} / {interpretation?.figures.length}</span></div>
+            <div className="article-figure-stage">{figureUrl ? <button type="button" className="article-figure-image-button" onClick={() => setFigureExpanded(true)} aria-label={`放大论文配图：${figure.caption || figure.label || '当前图片'}`} aria-haspopup="dialog" title="点击放大图片"><img src={figureUrl} alt={figure.caption} /></button> : <div className="figure-placeholder"><ImageIcon size={28} /><span>正在读取论文图片</span></div>}
+              {interpretation && interpretation.figures.length > 1 && <><button type="button" className="carousel-prev" disabled={figureIndex === 0} onClick={() => setFigureIndex(index => Math.max(0, index - 1))} aria-label="上一张图片"><ChevronLeft size={18} /></button><button type="button" className="carousel-next" disabled={figureIndex === interpretation.figures.length - 1} onClick={() => setFigureIndex(index => Math.min(interpretation.figures.length - 1, index + 1))} aria-label="下一张图片"><ChevronRight size={18} /></button></>}
+            </div>
+            <div className="article-figure-caption"><strong>{figure.label}</strong><p>{figure.caption}</p></div>
+            {interpretation && interpretation.figures.length > 1 && <div className="figure-dots" aria-label="选择论文图片">{interpretation.figures.map((item, index) => <button type="button" key={`${item.path}-${index}`} className={index === figureIndex ? 'active' : ''} onClick={() => setFigureIndex(index)} aria-label={`查看第 ${index + 1} 张图片`} aria-current={index === figureIndex ? 'true' : undefined} />)}</div>}
+          </aside>}
+
           {!metadataOnly && detail.error && <div className="reader-error"><CircleAlert size={18} /><div><strong>自动处理未完成</strong><p>{detail.error}</p></div><button onClick={() => api.retry(detail.id).then(onChanged)}>重试</button></div>}
 
           {metadataOnly ? <section className="zotero-metadata" aria-label="Zotero 元信息">
@@ -383,16 +393,6 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
           </footer>
           <footer className="article-disclaimer"><FileText size={14} /><span>{metadataOnly ? '信息来自 Zotero 条目，未生成 AI 内容。' : '内容由 AI 依据当前文献生成，请结合原文判断。模型推断会单独标识。'}</span><span className="reader-shortcuts">J / K 切换 · M 已读</span></footer>
         </div>
-
-        {figure && <aside ref={figureRef} className="article-figure" aria-label="论文配图" style={{ '--figure-float-top': `${figureFloatPosition.top}px`, '--figure-float-right': `${figureFloatPosition.right}px`, visibility: figureFloating && !figureFloatPosition.visible ? 'hidden' : undefined } as CSSProperties}>
-          <div className="figure-resize-handle" role="separator" aria-label="调整论文配图宽度" aria-orientation="vertical" aria-valuemin={280} aria-valuemax={720} aria-valuenow={figureWidth} aria-valuetext={`${figureWidth} 像素`} title="拖动左边框调整图片宽度" tabIndex={0} onPointerDown={startFigureResize} onPointerMove={moveFigureResize} onPointerUp={endFigureResize} onPointerCancel={endFigureResize} onKeyDown={resizeFigureWithKeyboard}><span /></div>
-          <div className="article-figure-top"><span>{figure.label || 'FIGURE'}</span><span aria-live="polite">{figureIndex + 1} / {interpretation?.figures.length}</span></div>
-          <div className="article-figure-stage">{figureUrl ? <button type="button" className="article-figure-image-button" onClick={() => setFigureExpanded(true)} aria-label={`放大论文配图：${figure.caption || figure.label || '当前图片'}`} aria-haspopup="dialog" title="点击放大图片"><img src={figureUrl} alt={figure.caption} /></button> : <div className="figure-placeholder"><ImageIcon size={28} /><span>正在读取论文图片</span></div>}
-            {interpretation && interpretation.figures.length > 1 && <><button type="button" className="carousel-prev" disabled={figureIndex === 0} onClick={() => setFigureIndex(index => Math.max(0, index - 1))} aria-label="上一张图片"><ChevronLeft size={18} /></button><button type="button" className="carousel-next" disabled={figureIndex === interpretation.figures.length - 1} onClick={() => setFigureIndex(index => Math.min(interpretation.figures.length - 1, index + 1))} aria-label="下一张图片"><ChevronRight size={18} /></button></>}
-          </div>
-          <div className="article-figure-caption"><strong>{figure.label}</strong><p>{figure.caption}</p></div>
-          {interpretation && interpretation.figures.length > 1 && <div className="figure-dots" aria-label="选择论文图片">{interpretation.figures.map((item, index) => <button type="button" key={`${item.path}-${index}`} className={index === figureIndex ? 'active' : ''} onClick={() => setFigureIndex(index)} aria-label={`查看第 ${index + 1} 张图片`} aria-current={index === figureIndex ? 'true' : undefined} />)}</div>}
-        </aside>}
       </div>
     </article>
 

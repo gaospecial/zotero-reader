@@ -201,7 +201,7 @@ describe('Zotero Reader 工作台', () => {
     expect(secondFigure.querySelector('img')).toHaveAttribute('src', '/demo/structured-feedback-loop.svg');
   });
 
-  it('多图在独立右侧栏单张轮播，支持箭头切换与圆点直选', async () => {
+  it('多图在文内右侧环绕单张轮播，支持箭头切换与圆点直选', async () => {
     const detail = demoDetail(demoPapers[0]);
     detail.interpretation!.figures = [
       { path: 'figure-1.png', label: '图 1', caption: '第一张图注' },
@@ -237,7 +237,7 @@ describe('Zotero Reader 工作台', () => {
     expect(await screen.findByRole('button', { name: '放大论文配图：第一张图注' })).toBeInTheDocument();
   });
 
-  it('论文轮播栏默认 420px 且可通过左边框和键盘调整宽度', async () => {
+  it('论文环绕轮播默认 420px 且可通过左边框和键盘调整宽度', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
     await screen.findByRole('button', { name: '放大论文配图：不同反馈方式下的延迟迁移表现（演示数据）' });
@@ -249,7 +249,9 @@ describe('Zotero Reader 工作台', () => {
     border.setPointerCapture = vi.fn();
     border.releasePointerCapture = vi.fn();
     border.hasPointerCapture = vi.fn(() => true);
-    expect(getComputedStyle(figure).position).toBe('sticky');
+    expect(figure.parentElement).toHaveClass('article-main');
+    expect(getComputedStyle(figure).position).toBe('relative');
+    expect(getComputedStyle(figure).float).toBe('right');
     expect(layout.style.getPropertyValue('--figure-width')).toBe('420px');
     expect(border).toHaveAttribute('aria-valuenow', '420');
 

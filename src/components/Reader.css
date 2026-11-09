@@ -98,14 +98,7 @@
 }
 
 .article-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
   padding: 17px 28px 0;
-}
-
-.article-layout.has-figure {
-  grid-template-columns: minmax(0, 1fr) var(--figure-width, 420px);
-  gap: 28px;
 }
 
 .article-main {
@@ -616,25 +609,17 @@
 }
 
 .article-figure {
-  align-self: start;
-  position: sticky;
-  top: 12px;
+  position: relative;
+  float: right;
+  width: var(--figure-width, 420px);
   min-width: 0;
   max-width: 100%;
-  margin-top: 0;
+  margin: 4px 0 18px clamp(0px, calc(100% - var(--figure-width, 420px)), 22px);
   padding: 9px;
   border: 1px solid #e8e4dd;
   border-radius: 6px;
   background: #fff;
   box-shadow: 0 3px 12px rgba(47, 41, 32, .045);
-}
-
-.article-layout.has-figure.is-figure-floating {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.article-layout.has-figure.is-figure-floating .article-main {
-  max-width: none;
 }
 
 .article-layout.has-figure.is-figure-floating .article-figure {
@@ -977,21 +962,15 @@
 
 @media (max-width: 1200px) {
   .article-layout { padding: 15px 22px 0; }
-  .article-layout.has-figure { gap: 22px; }
   .article-action-bar .zotero-open { padding-right: 0; }
 }
 
 @media (max-width: 950px) {
-  .article-layout,
-  .article-layout.has-figure,
-  .article-layout.has-figure.is-figure-floating { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 15px 20px 0; }
-  .article-main { display: contents; }
-  .article-header { order: 0; }
-  .article-main > :not(.article-header) { order: 2; }
+  .article-layout { padding: 15px 20px 0; }
   .article-figure,
   .article-layout.has-figure.is-figure-floating .article-figure {
     position: static;
-    order: 1;
+    float: none;
     width: min(420px, 100%);
     max-height: none;
     margin: 14px 0;
