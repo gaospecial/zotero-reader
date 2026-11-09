@@ -1,10 +1,10 @@
-import { ArrowLeft, ArrowRight, BookOpenCheck, Check, CircleAlert, ExternalLink, FileText, Highlighter, Image as ImageIcon, LoaderCircle, MessageCircle, NotebookPen, RefreshCw, Share2, Sparkles, Star, Trash2, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, BookOpenCheck, Check, ChevronLeft, ChevronRight, CircleAlert, ExternalLink, FileText, Highlighter, Image as ImageIcon, LoaderCircle, MessageCircle, NotebookPen, RefreshCw, Share2, Sparkles, Star, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../lib/api';
 import { createNoteLocator, HIGHLIGHT_COLOR_OPTIONS, parseNoteLocator } from '../lib/textAnchors';
-import type { Figure, HighlightColor, Note, NoteLocator, PaperDetail } from '../types';
+import type { HighlightColor, Note, NoteLocator, PaperDetail } from '../types';
 import AnchoredMemoDialog from './AnchoredMemoDialog';
 import MarkdownWithNotes from './MarkdownWithNotes';
 import QaPanel from './QaPanel';
@@ -31,11 +31,12 @@ interface ReaderProps {
 }
 
 export default function Reader({ detail, active = true, fontSize = 12, onBack, onTrash, onMemo, onChanged, onRead, starred, onToggleStar, onPrevious, onNext, position, jumpToNoteId, onNoteJumpHandled, notify }: ReaderProps) {
+  const [figureIndex, setFigureIndex] = useState(0);
   const [figureUrls, setFigureUrls] = useState<Record<string, string>>({});
-  const [figureWidths, setFigureWidths] = useState<Record<string, number>>({});
-  const [expandedFigurePath, setExpandedFigurePath] = useState<string | null>(null);
-  const [floatingPreview, setFloatingPreview] = useState<{ path: string; top: number } | null>(null);
-  const [dismissedFloatingPath, setDismissedFloatingPath] = useState<string | null>(null);
+  const [figureWidth, setFigureWidth] = useState(420);
+  const [figureExpanded, setFigureExpanded] = useState(false);
+  const [figureFloating, setFigureFloating] = useState(false);
+  const [figureFloatPosition, setFigureFloatPosition] = useState({ top: 12, right: 0, visible: true });
   const [regenerating, setRegenerating] = useState(false);
   const [source, setSource] = useState<{ title: string; content: string } | null>(null);
   const [qaOpen, setQaOpen] = useState(false);
@@ -44,22 +45,27 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
   const [selectionMemo, setSelectionMemo] = useState<{ locator: NoteLocator; top: number; left: number } | null>(null);
   const [savingHighlight, setSavingHighlight] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
-  const floatingFigureRef = useRef<HTMLElement>(null);
+  const layoutRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const figureRef = useRef<HTMLElement>(null);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
+  const figureFloatingRef = useRef(false);
+  const figureFrameRef = useRef<number | null>(null);
+  const figureResize = useRef<{ startX: number; startWidth: number } | null>(null);
   const metadataOnly = detail.pdfState === 'unavailable';
   const interpretation = metadataOnly ? null : detail.interpretation;
-  const expandedFigure = interpretation?.figures.find(item => item.path === expandedFigurePath) ?? null;
-  const expandedFigureUrl = expandedFigure ? figureUrls[expandedFigure.path] : '';
-  const floatingFigure = interpretation?.figures.find(item => item.path === floatingPreview?.path) ?? null;
-  const floatingFigureUrl = floatingFigure ? figureUrls[floatingFigure.path] : '';
+  const figure = interpretation?.figures[figureIndex];
+  const figureUrl = figure ? figureUrls[figure.path] : '';
+  const hasFigure = Boolean(figure);
   const title = metadataOnly ? detail.title : interpretation?.titleZh || detail.titleZh || detail.title;
   const readingMinutes = useMemo(() => Math.max(1, Math.ceil((interpretation?.sections.reduce((total, section) => total + section.content.length, 0) ?? 0) / 450)), [interpretation]);
 
   useEffect(() => {
+    setFigureIndex(0);
     setFigureUrls({});
-    setExpandedFigurePath(null);
-    setFloatingPreview(null);
-    setDismissedFloatingPath(null);
+    setFigureExpanded(false);
+    setFigureFloating(false);
+    figureFloatingRef.current = false;
     setSource(null);
     setQaOpen(false);
     setAnchoredNotes([]);
@@ -77,7 +83,8 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     if (!interpretation?.markdownVersionId) return;
     let cancelled = false;
     setFigureUrls({});
-    setExpandedFigurePath(null);
+    setFigureExpanded(false);
+    setFigureIndex(index => Math.min(index, Math.max(0, interpretation.figures.length - 1)));
     interpretation.figures.forEach(figure => {
       api.asset(detail.id, interpretation.markdownVersionId!, figure.path)
         .then(url => { if (!cancelled) setFigureUrls(current => ({ ...current, [figure.path]: url })); })
@@ -89,32 +96,51 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
   useEffect(() => {
     const article = articleRef.current;
     const scroller = article?.closest('.inline-reading-list');
-    if (!article || !scroller || !active || !interpretation?.figures.length) {
-      setFloatingPreview(null);
+    if (!article || !(scroller instanceof HTMLElement) || !active || !hasFigure) {
+      figureFloatingRef.current = false;
+      setFigureFloating(false);
       return;
     }
-    let frame = 0;
     const update = () => {
-      const inlineFigures = Array.from(article.querySelectorAll<HTMLElement>('.article-figure-inline'));
-      if (!inlineFigures.length) { setFloatingPreview(null); return; }
-      const articleRect = article.getBoundingClientRect();
-      const scrollerRect = scroller.getBoundingClientRect();
-      const originalsOutOfView = inlineFigures.every(figure => figure.getBoundingClientRect().bottom < scrollerRect.top + 12);
-      if (!originalsOutOfView || articleRect.bottom <= scrollerRect.top || articleRect.top >= scrollerRect.bottom) {
-        setFloatingPreview(null);
-        if (!originalsOutOfView) setDismissedFloatingPath(null);
+      figureFrameRef.current = null;
+      const layout = layoutRef.current;
+      const header = headerRef.current;
+      const figureElement = figureRef.current;
+      if (!layout || !header || !figureElement) return;
+      if (window.innerWidth <= 950) {
+        figureFloatingRef.current = false;
+        setFigureFloating(false);
         return;
       }
-      const path = inlineFigures[inlineFigures.length - 1].dataset.figurePath;
-      if (!path || path === dismissedFloatingPath) { setFloatingPreview(null); return; }
-      const top = Math.max(12, scrollerRect.top - articleRect.top + 12);
-      const height = floatingFigureRef.current?.offsetHeight || 230;
-      if (top + height + 12 > articleRect.height) { setFloatingPreview(null); return; }
-      setFloatingPreview(current => current?.path === path && Math.abs(current.top - top) < 0.5 ? current : { path, top });
+      const scrollerRect = scroller.getBoundingClientRect();
+      const headerRect = header.getBoundingClientRect();
+      if (figureFloatingRef.current) {
+        if (headerRect.bottom > scrollerRect.top + 72) {
+          figureFloatingRef.current = false;
+          setFigureFloating(false);
+          return;
+        }
+        const articleRect = article.getBoundingClientRect();
+        const layoutRect = layout.getBoundingClientRect();
+        const figureRect = figureElement.getBoundingClientRect();
+        const paddingRight = Number.parseFloat(window.getComputedStyle(layout).paddingRight) || 0;
+        const next = {
+          top: Math.min(scrollerRect.top + 12, articleRect.bottom - figureRect.height - 12),
+          right: window.innerWidth - layoutRect.right + paddingRight,
+          visible: articleRect.bottom > scrollerRect.top && articleRect.top < scrollerRect.bottom,
+        };
+        setFigureFloatPosition(current => current.top === next.top && current.right === next.right && current.visible === next.visible ? current : next);
+      } else if (headerRect.bottom < scrollerRect.top + 20) {
+        const articleRect = article.getBoundingClientRect();
+        if (articleRect.bottom <= scrollerRect.top || articleRect.top >= scrollerRect.bottom) return;
+        const figureRect = figureElement.getBoundingClientRect();
+        figureFloatingRef.current = true;
+        setFigureFloatPosition({ top: scrollerRect.top + 12, right: window.innerWidth - figureRect.right, visible: true });
+        setFigureFloating(true);
+      }
     };
     const scheduleUpdate = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => { frame = 0; update(); });
+      if (figureFrameRef.current === null) figureFrameRef.current = window.requestAnimationFrame(update);
     };
     update();
     scroller.addEventListener('scroll', scheduleUpdate, { passive: true });
@@ -122,16 +148,17 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     return () => {
       scroller.removeEventListener('scroll', scheduleUpdate);
       window.removeEventListener('resize', scheduleUpdate);
-      if (frame) window.cancelAnimationFrame(frame);
+      if (figureFrameRef.current !== null) window.cancelAnimationFrame(figureFrameRef.current);
+      figureFrameRef.current = null;
     };
-  }, [active, detail.id, dismissedFloatingPath, interpretation?.figures]);
+  }, [active, detail.id, hasFigure]);
 
   useEffect(() => {
-    if (!expandedFigurePath) return;
+    if (!figureExpanded) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     lightboxCloseRef.current?.focus();
     return () => previousFocus?.focus();
-  }, [expandedFigurePath]);
+  }, [figureExpanded]);
 
   useEffect(() => {
     if (!active) return;
@@ -141,19 +168,19 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
       if (event.key === 'Escape') {
         if (memoComposer) return;
         event.preventDefault();
-        if (expandedFigurePath) setExpandedFigurePath(null);
+        if (figureExpanded) setFigureExpanded(false);
         else if (qaOpen) setQaOpen(false);
         else onBack();
         return;
       }
-      if (expandedFigurePath || memoComposer) return;
+      if (figureExpanded || memoComposer) return;
       if (event.key.toLowerCase() === 'j' && onNext) { event.preventDefault(); onNext(); }
       if (event.key.toLowerCase() === 'k' && onPrevious) { event.preventDefault(); onPrevious(); }
       if (event.key.toLowerCase() === 'm') { event.preventDefault(); onRead(); }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [active, expandedFigurePath, memoComposer, onBack, onNext, onPrevious, onRead, qaOpen]);
+  }, [active, figureExpanded, memoComposer, onBack, onNext, onPrevious, onRead, qaOpen]);
 
   useEffect(() => {
     const scroller = articleRef.current?.closest('.inline-reading-list');
@@ -246,48 +273,33 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     setSelectionMemo({ locator, top, left });
   };
 
-  const figureResize = useRef<{ widthKey: string; pointerId: number; startX: number; startWidth: number; containerWidth: number } | null>(null);
-  const updateFigureWidth = (widthKey: string, width: number) => {
-    const bounded = Math.max(25, Math.min(100, Math.round(width)));
-    setFigureWidths(current => ({ ...current, [widthKey]: bounded }));
+  const boundFigureWidth = (width: number) => {
+    const available = articleRef.current?.clientWidth || 1140;
+    const maximum = Math.max(280, Math.min(720, available - 420));
+    return Math.round(Math.max(280, Math.min(maximum, width)));
   };
-  const startFigureResize = (event: ReactPointerEvent<HTMLDivElement>, widthKey: string, width: number) => {
+  const startFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
-    const containerWidth = event.currentTarget.closest('.article-main')?.getBoundingClientRect().width ?? 0;
-    if (!containerWidth) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    figureResize.current = { widthKey, pointerId: event.pointerId, startX: event.clientX, startWidth: width, containerWidth };
+    figureResize.current = { startX: event.clientX, startWidth: figureWidth };
   };
   const moveFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const resize = figureResize.current;
-    if (!resize || resize.pointerId !== event.pointerId) return;
+    if (!figureResize.current) return;
     event.preventDefault();
-    updateFigureWidth(resize.widthKey, resize.startWidth + (resize.startX - event.clientX) / resize.containerWidth * 100);
+    setFigureWidth(boundFigureWidth(figureResize.current.startWidth + figureResize.current.startX - event.clientX));
   };
   const endFigureResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (figureResize.current?.pointerId !== event.pointerId) return;
     figureResize.current = null;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
-  const resizeFigureWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>, widthKey: string, width: number) => {
+  const resizeFigureWithKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
-    if (event.key === 'Home') return updateFigureWidth(widthKey, 25);
-    if (event.key === 'End') return updateFigureWidth(widthKey, 100);
-    updateFigureWidth(widthKey, width + (event.key === 'ArrowLeft' ? 5 : -5));
-  };
-
-  const renderFigure = (figure: Figure) => {
-    const url = figureUrls[figure.path];
-    const widthKey = `${detail.id}:${figure.path}`;
-    const width = figureWidths[widthKey] ?? 40;
-    return <figure className="article-figure-inline" key={figure.path} data-figure-path={figure.path} style={{ '--figure-width': `${width}%` } as CSSProperties}>
-      <div className="article-figure-stage">{url ? <button type="button" className="article-figure-image-button" onClick={() => setExpandedFigurePath(figure.path)} aria-label={`放大论文配图：${figure.caption || figure.label || '当前图片'}`} aria-haspopup="dialog" title="点击放大图片"><img src={url} alt={figure.caption} /></button> : <div className="figure-placeholder"><ImageIcon size={28} /><span>正在读取论文图片</span></div>}</div>
-      <figcaption className="article-figure-caption"><strong>{figure.label}</strong><p>{figure.caption}</p></figcaption>
-      <div className="article-figure-resize-border" role="separator" aria-label={`调整${figure.label || '论文配图'}宽度`} aria-orientation="vertical" aria-valuemin={25} aria-valuemax={100} aria-valuenow={width} aria-valuetext={`${width}%`} title="拖动左边框调整图片宽度" tabIndex={0} onPointerDown={event => startFigureResize(event, widthKey, width)} onPointerMove={moveFigureResize} onPointerUp={endFigureResize} onPointerCancel={endFigureResize} onKeyDown={event => resizeFigureWithKeyboard(event, widthKey, width)} />
-    </figure>;
+    if (event.key === 'Home') return setFigureWidth(boundFigureWidth(280));
+    if (event.key === 'End') return setFigureWidth(boundFigureWidth(720));
+    setFigureWidth(boundFigureWidth(figureWidth + (event.key === 'ArrowLeft' ? 16 : -16)));
   };
 
   const regenerate = async () => {
@@ -326,9 +338,9 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
         </div>
       </header>
 
-      <div className="article-layout">
+      <div ref={layoutRef} className={`article-layout ${figure ? 'has-figure' : ''} ${figureFloating ? 'is-figure-floating' : ''}`} style={{ '--figure-width': `${figureWidth}px` } as CSSProperties}>
         <div className="article-main">
-          <header className="article-header">
+          <header className="article-header" ref={headerRef}>
             <div className="article-kicker"><span className="article-kicker-dot" /><span>{detail.publication || 'ZOTERO READER'}</span><span className="article-kicker-label">{metadataOnly ? 'ZOTERO METADATA' : <><Sparkles size={11} />AI STRUCTURED READING</>}</span></div>
             <h1>{title}</h1>
             {!metadataOnly && <p className="article-original-title">{detail.title}</p>}
@@ -341,8 +353,6 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
             {!metadataOnly && <p className="article-lede">{interpretation?.oneSentence || detail.oneSentence || '解读尚未生成。'}</p>}
             {detail.tags.length > 0 && <div className="article-tags">{detail.tags.map(tag => <span key={tag}>{tag}</span>)}</div>}
           </header>
-
-          {interpretation && interpretation.figures.length > 0 && <div className="article-figures-inline" aria-label="论文配图">{interpretation.figures.map(renderFigure)}</div>}
 
           {!metadataOnly && detail.error && <div className="reader-error"><CircleAlert size={18} /><div><strong>自动处理未完成</strong><p>{detail.error}</p></div><button onClick={() => api.retry(detail.id).then(onChanged)}>重试</button></div>}
 
@@ -373,13 +383,17 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
           </footer>
           <footer className="article-disclaimer"><FileText size={14} /><span>{metadataOnly ? '信息来自 Zotero 条目，未生成 AI 内容。' : '内容由 AI 依据当前文献生成，请结合原文判断。模型推断会单独标识。'}</span><span className="reader-shortcuts">J / K 切换 · M 已读</span></footer>
         </div>
-      </div>
 
-      {floatingPreview && floatingFigure && floatingFigureUrl && <aside ref={floatingFigureRef} className="article-figure-floating" aria-label="悬浮论文配图" style={{ top: floatingPreview.top }}>
-        <div className="article-figure-floating-header"><span>{floatingFigure.label || '论文配图'} · 悬浮预览</span><button type="button" onClick={() => { setDismissedFloatingPath(floatingFigure.path); setFloatingPreview(null); }} aria-label="收起悬浮图片" title="收起悬浮图片"><X size={13} /></button></div>
-        <button type="button" className="article-figure-floating-image" onClick={() => setExpandedFigurePath(floatingFigure.path)} aria-label={`放大悬浮论文配图：${floatingFigure.caption || floatingFigure.label || '当前图片'}`} aria-haspopup="dialog" title="点击放大图片"><img src={floatingFigureUrl} alt={floatingFigure.caption} /></button>
-        <p title={floatingFigure.caption}>{floatingFigure.caption}</p>
-      </aside>}
+        {figure && <aside ref={figureRef} className="article-figure" aria-label="论文配图" style={{ '--figure-float-top': `${figureFloatPosition.top}px`, '--figure-float-right': `${figureFloatPosition.right}px`, visibility: figureFloating && !figureFloatPosition.visible ? 'hidden' : undefined } as CSSProperties}>
+          <div className="figure-resize-handle" role="separator" aria-label="调整论文配图宽度" aria-orientation="vertical" aria-valuemin={280} aria-valuemax={720} aria-valuenow={figureWidth} aria-valuetext={`${figureWidth} 像素`} title="拖动左边框调整图片宽度" tabIndex={0} onPointerDown={startFigureResize} onPointerMove={moveFigureResize} onPointerUp={endFigureResize} onPointerCancel={endFigureResize} onKeyDown={resizeFigureWithKeyboard}><span /></div>
+          <div className="article-figure-top"><span>{figure.label || 'FIGURE'}</span><span aria-live="polite">{figureIndex + 1} / {interpretation?.figures.length}</span></div>
+          <div className="article-figure-stage">{figureUrl ? <button type="button" className="article-figure-image-button" onClick={() => setFigureExpanded(true)} aria-label={`放大论文配图：${figure.caption || figure.label || '当前图片'}`} aria-haspopup="dialog" title="点击放大图片"><img src={figureUrl} alt={figure.caption} /></button> : <div className="figure-placeholder"><ImageIcon size={28} /><span>正在读取论文图片</span></div>}
+            {interpretation && interpretation.figures.length > 1 && <><button type="button" className="carousel-prev" disabled={figureIndex === 0} onClick={() => setFigureIndex(index => Math.max(0, index - 1))} aria-label="上一张图片"><ChevronLeft size={18} /></button><button type="button" className="carousel-next" disabled={figureIndex === interpretation.figures.length - 1} onClick={() => setFigureIndex(index => Math.min(interpretation.figures.length - 1, index + 1))} aria-label="下一张图片"><ChevronRight size={18} /></button></>}
+          </div>
+          <div className="article-figure-caption"><strong>{figure.label}</strong><p>{figure.caption}</p></div>
+          {interpretation && interpretation.figures.length > 1 && <div className="figure-dots" aria-label="选择论文图片">{interpretation.figures.map((item, index) => <button type="button" key={`${item.path}-${index}`} className={index === figureIndex ? 'active' : ''} onClick={() => setFigureIndex(index)} aria-label={`查看第 ${index + 1} 张图片`} aria-current={index === figureIndex ? 'true' : undefined} />)}</div>}
+        </aside>}
+      </div>
     </article>
 
     {qaOpen && <><button className="qa-drawer-scrim" aria-label="关闭 AI 问答" onClick={() => setQaOpen(false)} /><aside className="reader-qa-drawer"><button className="qa-drawer-close" onClick={() => setQaOpen(false)} aria-label="关闭问答"><X size={17} /></button><QaPanel paper={detail} notify={notify} onSource={openSource} /></aside></>}
@@ -395,9 +409,9 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     </div>, document.body)}
     {memoComposer && <AnchoredMemoDialog detail={detail} note={memoComposer.note} locator={memoComposer.locator} onClose={() => setMemoComposer(null)} onChanged={refreshAnchoredNotes} notify={notify} />}
     {source && <Modal title={source.title} eyebrow="MARKDOWN SOURCE · CURRENT VERSION" onClose={() => setSource(null)} wide><div className="source-excerpt"><MarkdownWithNotes content={source.content} notes={[]} onOpenNote={() => undefined} /></div></Modal>}
-    {expandedFigure && expandedFigureUrl && createPortal(<div className="figure-lightbox" role="dialog" aria-modal="true" aria-label={`${expandedFigure.label || '论文图片'}放大预览`} onClick={() => setExpandedFigurePath(null)}>
-      <button ref={lightboxCloseRef} type="button" className="figure-lightbox-close" onClick={() => setExpandedFigurePath(null)} aria-label="关闭放大图片" title="关闭放大图片（Esc）"><X size={22} /></button>
-      <div className="figure-lightbox-body"><img src={expandedFigureUrl} alt={expandedFigure.caption} onClick={() => setExpandedFigurePath(null)} title="再次点击关闭放大" /><div className="figure-lightbox-caption"><strong>{expandedFigure.label}</strong><p>{expandedFigure.caption}</p></div></div>
+    {figureExpanded && figure && figureUrl && createPortal(<div className="figure-lightbox" role="dialog" aria-modal="true" aria-label={`${figure.label || '论文图片'}放大预览`} onClick={() => setFigureExpanded(false)}>
+      <button ref={lightboxCloseRef} type="button" className="figure-lightbox-close" onClick={() => setFigureExpanded(false)} aria-label="关闭放大图片" title="关闭放大图片（Esc）"><X size={22} /></button>
+      <div className="figure-lightbox-body"><img src={figureUrl} alt={figure.caption} onClick={() => setFigureExpanded(false)} title="再次点击关闭放大" /><div className="figure-lightbox-caption"><strong>{figure.label}</strong><p>{figure.caption}</p></div></div>
       <span className="figure-lightbox-hint">再次点击图片或按 Esc 关闭</span>
     </div>, document.body)}
   </section>;

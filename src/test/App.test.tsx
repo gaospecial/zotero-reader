@@ -201,34 +201,57 @@ describe('Zotero Reader 工作台', () => {
     expect(secondFigure.querySelector('img')).toHaveAttribute('src', '/demo/structured-feedback-loop.svg');
   });
 
-  it('论文配图内嵌在正文最前面而不是独立右侧栏或后续章节', async () => {
+  it('多图在独立右侧栏单张轮播，支持箭头切换与圆点直选', async () => {
+    const detail = demoDetail(demoPapers[0]);
+    detail.interpretation!.figures = [
+      { path: 'figure-1.png', label: '图 1', caption: '第一张图注' },
+      { path: 'figure-2.png', label: '图 2', caption: '第二张图注' },
+      { path: 'figure-3.png', label: '图 3', caption: '第三张图注' },
+    ];
+    vi.spyOn(api, 'detail').mockResolvedValue(detail);
+    vi.spyOn(api, 'asset').mockResolvedValue('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"></svg>');
     render(<App />);
     fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
-    const figure = await screen.findByRole('button', { name: '放大论文配图：不同反馈方式下的延迟迁移表现（演示数据）' });
-    const inlineFigures = figure.closest('.article-figures-inline');
-    expect(inlineFigures).not.toBeNull();
-    expect(inlineFigures?.previousElementSibling).toHaveClass('article-header');
-    expect(inlineFigures?.nextElementSibling).toHaveClass('article-sections');
-    expect(figure.closest('.article-section')).toBeNull();
-    expect(figure.closest('aside')).toBeNull();
-    expect(document.querySelector('.article-layout')).not.toHaveClass('has-figure');
+    const first = await screen.findByRole('button', { name: '放大论文配图：第一张图注' });
+    const carousel = first.closest('aside.article-figure');
+    expect(carousel).not.toBeNull();
+    expect(carousel?.querySelectorAll('.article-figure-stage img')).toHaveLength(1);
+    expect(document.querySelector('.article-layout')).toHaveClass('has-figure');
+    expect(document.querySelectorAll('.article-figure-inline')).toHaveLength(0);
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '上一张图片' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '下一张图片' }));
+    expect(await screen.findByRole('button', { name: '放大论文配图：第二张图注' })).toBeInTheDocument();
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '放大论文配图：第一张图注' })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '查看第 3 张图片' }));
+    expect(await screen.findByRole('button', { name: '放大论文配图：第三张图注' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下一张图片' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '查看第 3 张图片' })).toHaveAttribute('aria-current', 'true');
+
+    fireEvent.click(screen.getByRole('button', { name: '上一张图片' }));
+    expect(await screen.findByRole('button', { name: '放大论文配图：第二张图注' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看第 1 张图片' }));
+    expect(await screen.findByRole('button', { name: '放大论文配图：第一张图注' })).toBeInTheDocument();
   });
 
-  it('论文配图默认右对齐占 40% 且可通过左边框拉伸调整宽度', async () => {
+  it('论文轮播栏默认 420px 且可通过左边框和键盘调整宽度', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
     await screen.findByRole('button', { name: '放大论文配图：不同反馈方式下的延迟迁移表现（演示数据）' });
-    const figure = document.querySelector('.article-figure-inline') as HTMLElement;
-    const main = document.querySelector('.article-main') as HTMLElement;
-    vi.spyOn(main, 'getBoundingClientRect').mockReturnValue({ width: 1000, height: 1800, top: 0, bottom: 1800, left: 0, right: 1000, x: 0, y: 0, toJSON: () => ({}) } as DOMRect);
-    const border = screen.getByRole('separator', { name: '调整图 1宽度' });
+    const figure = document.querySelector('.article-figure') as HTMLElement;
+    const article = document.querySelector('.article-reader') as HTMLElement;
+    const layout = document.querySelector('.article-layout') as HTMLElement;
+    vi.spyOn(article, 'clientWidth', 'get').mockReturnValue(1140);
+    const border = screen.getByRole('separator', { name: '调整论文配图宽度' });
     border.setPointerCapture = vi.fn();
     border.releasePointerCapture = vi.fn();
     border.hasPointerCapture = vi.fn(() => true);
-    expect(screen.queryByRole('slider')).not.toBeInTheDocument();
-    expect(getComputedStyle(figure).float).toBe('right');
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('40%');
-    expect(border).toHaveAttribute('aria-valuenow', '40');
+    expect(getComputedStyle(figure).position).toBe('sticky');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('420px');
+    expect(border).toHaveAttribute('aria-valuenow', '420');
 
     const pointer = (type: string, clientX: number) => {
       const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, clientX });
@@ -237,22 +260,22 @@ describe('Zotero Reader 工作台', () => {
     };
     fireEvent(border, pointer('pointerdown', 400));
     fireEvent(border, pointer('pointermove', 150));
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('65%');
-    expect(border).toHaveAttribute('aria-valuetext', '65%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('670px');
+    expect(border).toHaveAttribute('aria-valuetext', '670 像素');
     fireEvent(border, pointer('pointermove', 1000));
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('25%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('280px');
     fireEvent(border, pointer('pointerup', 1000));
     fireEvent(border, pointer('pointermove', 0));
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('25%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('280px');
 
     fireEvent.keyDown(border, { key: 'End' });
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('100%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('720px');
     fireEvent.keyDown(border, { key: 'Home' });
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('25%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('280px');
     fireEvent.keyDown(border, { key: 'ArrowLeft' });
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('30%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('296px');
     fireEvent.keyDown(border, { key: 'ArrowRight' });
-    expect(figure.style.getPropertyValue('--figure-width')).toBe('25%');
+    expect(layout.style.getPropertyValue('--figure-width')).toBe('280px');
   });
 
   it('点击图片可放大，再次点击图片关闭且不会收起阅读区', async () => {
@@ -271,34 +294,52 @@ describe('Zotero Reader 工作台', () => {
     expect(screen.getByRole('heading', { name: '基本信息提取', level: 2 })).toBeInTheDocument();
   });
 
-  it('原图滚出视口后显示可收起的悬浮缩略图且正文宽度不变', async () => {
+  it('悬浮后轮播仍保留当前图片、箭头、圆点选择与放大入口', async () => {
+    const detail = demoDetail(demoPapers[0]);
+    detail.interpretation!.figures = [
+      { path: 'figure-1.png', label: '图 1', caption: '第一张图注' },
+      { path: 'figure-2.png', label: '图 2', caption: '第二张图注' },
+      { path: 'figure-3.png', label: '图 3', caption: '第三张图注' },
+    ];
+    vi.spyOn(api, 'detail').mockResolvedValue(detail);
+    vi.spyOn(api, 'asset').mockResolvedValue('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg"></svg>');
     render(<App />);
     fireEvent.click(await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？'));
-    await screen.findByRole('button', { name: '放大论文配图：不同反馈方式下的延迟迁移表现（演示数据）' });
+    await screen.findByRole('button', { name: '放大论文配图：第一张图注' });
+    fireEvent.click(screen.getByRole('button', { name: '下一张图片' }));
+    await screen.findByRole('button', { name: '放大论文配图：第二张图注' });
+
     const scroller = document.querySelector('.inline-reading-list') as HTMLElement;
     const article = document.querySelector('.article-reader') as HTMLElement;
-    const inline = document.querySelector('.article-figure-inline') as HTMLElement;
-    const main = document.querySelector('.article-main') as HTMLElement;
+    const header = document.querySelector('.article-header') as HTMLElement;
+    const figure = document.querySelector('.article-figure') as HTMLElement;
     const layout = document.querySelector('.article-layout') as HTMLElement;
     const rect = (top: number, height: number, width = 980) => ({ width, height, top, bottom: top + height, left: 0, right: width, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
     vi.spyOn(scroller, 'getBoundingClientRect').mockImplementation(() => rect(100, 600));
     vi.spyOn(article, 'getBoundingClientRect').mockImplementation(() => rect(200 - scroller.scrollTop, 2000));
-    vi.spyOn(inline, 'getBoundingClientRect').mockImplementation(() => rect(500 - scroller.scrollTop, 500));
-    vi.spyOn(main, 'getBoundingClientRect').mockImplementation(() => rect(200 - scroller.scrollTop, 1800));
-    const initialWidth = main.getBoundingClientRect().width;
-    const initialClass = layout.className;
+    vi.spyOn(header, 'getBoundingClientRect').mockImplementation(() => rect(300 - scroller.scrollTop, 200));
+    vi.spyOn(figure, 'getBoundingClientRect').mockImplementation(() => rect(500 - scroller.scrollTop, 500));
+    vi.spyOn(layout, 'getBoundingClientRect').mockImplementation(() => rect(300 - scroller.scrollTop, 1800));
 
     fireEvent.scroll(scroller, { target: { scrollTop: 1200 } });
-    const floating = await screen.findByRole('complementary', { name: '悬浮论文配图' });
-    expect(floating).toHaveClass('article-figure-floating');
-    expect(getComputedStyle(floating).position).toBe('absolute');
-    expect(main.getBoundingClientRect().width).toBe(initialWidth);
-    expect(layout.className).toBe(initialClass);
+    await waitFor(() => expect(layout).toHaveClass('is-figure-floating'));
+    expect(getComputedStyle(figure).position).toBe('fixed');
+    expect(screen.getByRole('button', { name: '放大论文配图：第二张图注' })).toBeInTheDocument();
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '收起悬浮图片' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: '收起悬浮图片' }));
-    expect(screen.queryByRole('complementary', { name: '悬浮论文配图' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '下一张图片' }));
+    expect(await screen.findByRole('button', { name: '放大论文配图：第三张图注' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '查看第 1 张图片' }));
+    const first = await screen.findByRole('button', { name: '放大论文配图：第一张图注' });
+    fireEvent.click(first);
+    expect(await screen.findByRole('dialog', { name: '图 1放大预览' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '关闭放大图片' }));
+    expect(layout).toHaveClass('is-figure-floating');
+
     fireEvent.scroll(scroller, { target: { scrollTop: 0 } });
-    await waitFor(() => expect(screen.queryByRole('complementary', { name: '悬浮论文配图' })).not.toBeInTheDocument());
+    await waitFor(() => expect(layout).not.toHaveClass('is-figure-floating'));
+    expect(screen.getByRole('button', { name: '放大论文配图：第一张图注' })).toBeInTheDocument();
   });
 
   it('全部展开后可独立收起其中一篇，其余阅读区保持打开', async () => {
