@@ -336,19 +336,26 @@
 }
 
 .article-reader mark.memo-highlight {
+  --highlight-bg: #fff0bd;
+  --highlight-border: #d7aa4d;
+  --highlight-hover: #ffe497;
   padding: 0 1px;
-  border-bottom: 1px solid #d7aa4d;
+  border-bottom: 1px solid var(--highlight-border);
   border-radius: 2px;
   color: inherit;
-  background: #fff0bd;
+  background: var(--highlight-bg);
   cursor: pointer;
   transition: background .15s, box-shadow .15s;
 }
 
+.article-reader mark.memo-highlight[data-color="green"] { --highlight-bg: #dfeee0; --highlight-border: #77a17b; --highlight-hover: #d0e7d2; }
+.article-reader mark.memo-highlight[data-color="blue"] { --highlight-bg: #dfeaf5; --highlight-border: #6f95b7; --highlight-hover: #cedff0; }
+.article-reader mark.memo-highlight[data-color="pink"] { --highlight-bg: #f5e1e6; --highlight-border: #bd7f8e; --highlight-hover: #f0d0d9; }
+
 .article-reader mark.memo-highlight:hover,
 .article-reader mark.memo-highlight:focus-visible {
-  background: #ffe497;
-  box-shadow: 0 0 0 2px rgba(215, 170, 77, .16);
+  background: var(--highlight-hover);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--highlight-border) 20%, transparent);
   outline: none;
 }
 
@@ -356,27 +363,80 @@
   animation: memo-highlight-pulse .8s ease-in-out 2;
 }
 
-.selection-memo-button {
+.selection-highlight-toolbar {
   position: fixed;
   z-index: 90;
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 0 11px;
-  border: 1px solid #d8cec2;
-  border-radius: 6px;
-  color: #fff;
-  background: #9e3d34;
-  box-shadow: 0 6px 20px rgba(55, 39, 29, .2);
-  font-size: 11px;
-  font-weight: 600;
+  gap: 4px;
+  padding: 5px 6px;
+  border: 1px solid #ddd5ca;
+  border-radius: 7px;
+  color: #918578;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(55, 39, 29, .18);
   white-space: nowrap;
   animation: fade-in .12s ease-out;
 }
 
+.selection-color-button,
+.highlight-color-option {
+  --swatch: #f1cf67;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+}
+
+.selection-color-button > span,
+.highlight-color-option > span {
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+  background: var(--swatch);
+  box-shadow: inset 0 0 0 1px rgba(70, 55, 35, .1);
+}
+
+.selection-color-button[data-color="green"],
+.highlight-color-option[data-color="green"] { --swatch: #a8cda9; }
+.selection-color-button[data-color="blue"],
+.highlight-color-option[data-color="blue"] { --swatch: #a5c2df; }
+.selection-color-button[data-color="pink"],
+.highlight-color-option[data-color="pink"] { --swatch: #dfa9b7; }
+
+.selection-color-button:hover,
+.highlight-color-option:hover,
+.highlight-color-option[aria-pressed="true"] {
+  border-color: #cfc5b8;
+  background: #f7f4ef;
+}
+
+.selection-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: #e6e0d8;
+}
+
+.selection-memo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 7px;
+  border-radius: 4px;
+  color: #963b32;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 600;
+}
+
 .selection-memo-button:hover {
-  background: #852f28;
+  background: #f5e9e6;
 }
 
 .anchored-memo-source {
@@ -386,6 +446,10 @@
   border-radius: 0 5px 5px 0;
   background: #faf6eb;
 }
+
+.anchored-memo-source[data-color="green"] { border-left-color: #77a17b; background: #f0f6ef; }
+.anchored-memo-source[data-color="blue"] { border-left-color: #6f95b7; background: #f0f5f9; }
+.anchored-memo-source[data-color="pink"] { border-left-color: #bd7f8e; background: #faf1f3; }
 
 .anchored-memo-source > span {
   display: block;
@@ -402,6 +466,39 @@
   color: #625746;
   font: 11px/1.8 var(--serif);
   white-space: pre-wrap;
+}
+
+.highlight-color-setting {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 24px 12px;
+  color: #8c8173;
+  font-size: 10px;
+}
+
+.highlight-color-setting > span,
+.highlight-color-setting > div {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.highlight-color-setting > small {
+  grid-column: 1 / -1;
+  color: #a39a8e;
+  font-size: 9px;
+}
+
+.highlight-color-option > svg {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  padding: 1px;
+  border-radius: 50%;
+  color: #655b50;
+  background: #fff;
 }
 
 .anchored-memo-delete {
@@ -873,7 +970,7 @@
 }
 
 @keyframes memo-highlight-pulse {
-  50% { background: #f4c95d; box-shadow: 0 0 0 5px rgba(244, 201, 93, .24); }
+  50% { background: var(--highlight-hover); box-shadow: 0 0 0 5px color-mix(in srgb, var(--highlight-border) 24%, transparent); }
 }
 
 @media (max-width: 1200px) {

@@ -431,14 +431,17 @@ mod tests {
         let db = open(Path::new(":memory:")).unwrap();
         let id = upsert_paper(&db,"ANCHOR",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         save_note(&db,&id,"整篇总备忘").unwrap();
-        let locator = NoteLocator{version:1,section_index:2,section_title:"研究方法".into(),exact:"随机分配的准实验设计".into(),prefix:"研究采用".into(),suffix:"并记录过程".into(),start:4,end:15};
+        let locator = NoteLocator{version:1,section_index:2,section_title:"研究方法".into(),exact:"随机分配的准实验设计".into(),prefix:"研究采用".into(),suffix:"并记录过程".into(),start:4,end:15,color:HighlightColor::Yellow};
         let note_id = create_anchored_note(&db,&id,"interpretation-v1","需要复核随机化过程",&locator).unwrap();
         let notes = list_item_notes(&db,&id).unwrap();
         assert_eq!(notes.len(),1);
         assert_eq!(notes[0].interpretation_id.as_deref(),Some("interpretation-v1"));
         assert_eq!(get_detail(&db,&id).unwrap().note,"整篇总备忘");
-        update_anchored_note(&db,&note_id,"已核对分配隐藏").unwrap();
-        assert_eq!(list_item_notes(&db,&id).unwrap()[0].content,"已核对分配隐藏");
+        let updated_locator = NoteLocator{color:HighlightColor::Green,..locator};
+        update_anchored_note(&db,&note_id,"已核对分配隐藏",&updated_locator).unwrap();
+        let updated = list_item_notes(&db,&id).unwrap().remove(0);
+        assert_eq!(updated.content,"已核对分配隐藏");
+        assert_eq!(serde_json::from_str::<NoteLocator>(&updated.locator.unwrap()).unwrap().color,HighlightColor::Green);
         assert_eq!(list_notes(&db,Some("准实验设计")).unwrap().len(),1);
         delete_anchored_note(&db,&note_id).unwrap();
         assert!(list_item_notes(&db,&id).unwrap().is_empty());
@@ -446,13 +449,14 @@ mod tests {
     }
 
     #[test]
-    fn anchored_notes_reject_empty_content_and_missing_records() {
+    fn anchored_notes_allow_blank_memo_and_validate_records() {
         let db = open(Path::new(":memory:")).unwrap();
         let id = upsert_paper(&db,"ANCHOR-VALIDATION",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
-        let locator = NoteLocator{version:1,section_index:0,section_title:"基本信息".into(),exact:"有效引用".into(),prefix:String::new(),suffix:String::new(),start:0,end:4};
-        assert!(create_anchored_note(&db,&id,"interpretation-v1"," ",&locator).is_err());
-        assert!(create_anchored_note(&db,&id,"interpretation-v1","有效备忘",&NoteLocator{exact:String::new(),..locator}).is_err());
-        assert!(update_anchored_note(&db,"missing","内容").is_err());
+        let locator = NoteLocator{version:1,section_index:0,section_title:"基本信息".into(),exact:"有效引用".into(),prefix:String::new(),suffix:String::new(),start:0,end:4,color:HighlightColor::Blue};
+        create_anchored_note(&db,&id,"interpretation-v1"," ",&locator).unwrap();
+        assert_eq!(list_item_notes(&db,&id).unwrap()[0].content,"");
+        assert!(create_anchored_note(&db,&id,"interpretation-v1","有效备忘",&NoteLocator{exact:String::new(),..locator.clone()}).is_err());
+        assert!(update_anchored_note(&db,"missing","内容",&locator).is_err());
         assert!(delete_anchored_note(&db,"missing").is_err());
     }
 

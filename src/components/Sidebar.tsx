@@ -3,18 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 import appIcon from '../../src-tauri/icons/64x64.png';
 import type { Collection, LibraryStats, ServiceStatus, ViewName } from '../types';
 
+const expandedCollectionsStorageKey = 'reader-expanded-collections';
+const readExpandedCollections = (): Set<string> => {
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(expandedCollectionsStorageKey) ?? '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((key): key is string => typeof key === 'string') : []);
+  } catch {
+    return new Set();
+  }
+};
+
 interface Props { view: ViewName; onView: (view: ViewName) => void; collection: string; onCollection: (key: string) => void; collections: Collection[]; stats: LibraryStats; starredCount: number; services: ServiceStatus; onImport: () => void; onSync: (key: string) => void; syncingCollection: string | null; onSettings: () => void; width: number; collapsed: boolean; onWidthChange: (width: number) => void; onToggleCollapsed: () => void }
 export default function Sidebar({ view, onView, collection, onCollection, collections, stats, starredCount, services, onImport, onSync, syncingCollection, onSettings, width, collapsed, onWidthChange, onToggleCollapsed }: Props) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set(collections.map(c => c.key)));
-  const knownCollectionKeys = useRef(new Set(collections.map(c => c.key)));
+  const [expanded, setExpanded] = useState<Set<string>>(readExpandedCollections);
   const [menu, setMenu] = useState<{ key: string; x: number; y: number } | null>(null);
   const sidebarResize = useRef<{ pointerId: number; startX: number; startWidth: number } | null>(null);
   useEffect(() => {
-    const newKeys = collections.filter(item => !knownCollectionKeys.current.has(item.key)).map(item => item.key);
-    knownCollectionKeys.current = new Set(collections.map(item => item.key));
-    if (!newKeys.length) return;
-    setExpanded(previous => new Set([...previous, ...newKeys]));
-  }, [collections]);
+    window.localStorage.setItem(expandedCollectionsStorageKey, JSON.stringify([...expanded]));
+  }, [expanded]);
   useEffect(() => {
     if (!menu) return;
     const close = () => setMenu(null);
@@ -56,7 +62,7 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     return <div key={item.key}>
       <div className={`tree-row ${collection === item.key && (view === 'library' || view === 'reader') ? 'active' : ''}`} style={{ paddingLeft: 12 + depth * 16 }} onContextMenu={event => { if (!item.joined) return; event.preventDefault(); setMenu({ key: item.key, x: Math.min(event.clientX, window.innerWidth - 190), y: Math.min(event.clientY, window.innerHeight - 58) }); }}>
         {children.length ? <button className="tree-toggle" onClick={() => setExpanded(previous => { const next = new Set(previous); if (next.has(item.key)) next.delete(item.key); else next.add(item.key); return next; })} aria-label={open ? '折叠分类' : '展开分类'}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</button> : <span className="tree-spacer" />}
-        <button className="tree-main" aria-haspopup={item.joined ? 'menu' : undefined} onClick={() => { onCollection(item.key); onView('library'); }}>{collection === item.key ? <FolderOpen size={15} /> : <Folder size={15} />}<span className="tree-name">{item.name}</span>{busy ? <small className="tree-syncing"><LoaderCircle size={11} className="spin" />同步中</small> : <span className="collection-stats" aria-label={`${item.itemCount} 篇文献，${item.pdfCount} 篇有 PDF 全文，${item.interpretedCount} 篇已解读`}><span data-tooltip="全部文献">{item.itemCount}</span><i>/</i><span data-tooltip="有 PDF 全文">{item.pdfCount}</span><i>/</i><span data-tooltip="已解读">{item.interpretedCount}</span></span>}</button>
+        <button className="tree-main" aria-haspopup={item.joined ? 'menu' : undefined} onClick={() => { onCollection(item.key); onView('library'); }}>{collection === item.key ? <FolderOpen size={15} /> : <Folder size={15} />}<span className="tree-name">{item.name}</span>{busy ? <small className="tree-syncing"><LoaderCircle size={11} className="spin" />同步中</small> : <span className="collection-stats" aria-label={`${item.itemCount} 篇文献，${item.pdfCount} 篇有 PDF 全文，${item.interpretedCount} 篇已解读`} data-tooltip={`共有${item.itemCount}篇文献记录，${item.pdfCount}篇有PDF，${item.interpretedCount}篇已完成解读。`}><span>{item.itemCount}</span><i>/</i><span>{item.pdfCount}</span><i>/</i><span>{item.interpretedCount}</span></span>}</button>
       </div>
       {open && children.map(child => renderCollection(child, depth + 1))}
     </div>;

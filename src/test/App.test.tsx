@@ -472,6 +472,24 @@ describe('Zotero Reader 工作台', () => {
     expect(importItems).toHaveBeenCalledWith(['ai']);
   });
 
+  it('Zotero 分类默认折叠，并记住手动展开和折叠状态', async () => {
+    const { unmount } = render(<App />);
+    const parent = await screen.findByRole('button', { name: '人工智能与教育 4 篇文献，4 篇有 PDF 全文，4 篇已解读' });
+    expect(screen.queryByRole('button', { name: '反馈与评价 2 篇文献，2 篇有 PDF 全文，2 篇已解读' })).not.toBeInTheDocument();
+
+    fireEvent.click(parent.closest('.tree-row')!.querySelector('.tree-toggle')!);
+    expect(screen.getByRole('button', { name: '反馈与评价 2 篇文献，2 篇有 PDF 全文，2 篇已解读' })).toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem('reader-expanded-collections')!)).toEqual(['ai']);
+
+    unmount();
+    render(<App />);
+    const restoredParent = await screen.findByRole('button', { name: '人工智能与教育 4 篇文献，4 篇有 PDF 全文，4 篇已解读' });
+    expect(screen.getByRole('button', { name: '反馈与评价 2 篇文献，2 篇有 PDF 全文，2 篇已解读' })).toBeInTheDocument();
+    fireEvent.click(restoredParent.closest('.tree-row')!.querySelector('.tree-toggle')!);
+    expect(screen.queryByRole('button', { name: '反馈与评价 2 篇文献，2 篇有 PDF 全文，2 篇已解读' })).not.toBeInTheDocument();
+    expect(JSON.parse(window.localStorage.getItem('reader-expanded-collections')!)).toEqual([]);
+  });
+
   it('分类树显示文献、全文和已解读三项统计，父分类包含子分类文献', async () => {
     render(<App />);
     const parent = await screen.findByRole('button', { name: '人工智能与教育 4 篇文献，4 篇有 PDF 全文，4 篇已解读' });
@@ -481,12 +499,14 @@ describe('Zotero Reader 工作台', () => {
     const stats = parent.querySelector('.collection-stats');
     const values = stats?.querySelectorAll(':scope>span');
     expect(values).toHaveLength(3);
-    expect(Array.from(values ?? []).map(value => value.getAttribute('data-tooltip'))).toEqual(['全部文献', '有 PDF 全文', '已解读']);
+    expect(stats).toHaveAttribute('data-tooltip', '共有4篇文献记录，4篇有PDF，4篇已完成解读。');
+    expect(stats?.querySelectorAll('[data-tooltip]')).toHaveLength(0);
     expect(stats?.querySelectorAll('svg')).toHaveLength(0);
     expect(stats).toHaveTextContent('4/4/4');
     fireEvent.click(parent);
     await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(4));
     expect(screen.getByText('从“给答案”到“促思考”：智能辅导反馈设计的实证研究')).toBeInTheDocument();
+    fireEvent.click(parent.closest('.tree-row')!.querySelector('.tree-toggle')!);
     fireEvent.click(screen.getByRole('button', { name: '反馈与评价 2 篇文献，2 篇有 PDF 全文，2 篇已解读' }));
     await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
   });

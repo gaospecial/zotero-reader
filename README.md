@@ -112,6 +112,12 @@ npm run desktop:build -- --bundles app
 
 打包不会把 API Key 嵌入应用。从 Finder 启动应用后，可直接在“设置 → 服务连接”保存密钥；环境变量方式仍然兼容，适合从终端启动的场景。
 
+## 提交与版本号
+
+所有新 commit 都必须更新版本号，并采用 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 的 `MAJOR.MINOR.PATCH` 格式。版本变更必须与该提交的其他变更位于同一个 commit，并同步更新 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 和 `src-tauri/tauri.conf.json`。
+
+完整递增规则、版本同步位置及 `amend`、发布标签的处理方式见 `AGENTS.md` 的“Git 提交与版本号”。历史提交不追溯修改。
+
 ## 持续集成
 
 GitHub Actions 工作流位于 `.github/workflows/ci.yml`，在以下情况自动运行：

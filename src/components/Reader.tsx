@@ -42,6 +42,7 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
   const [anchoredNotes, setAnchoredNotes] = useState<Note[]>([]);
   const [memoComposer, setMemoComposer] = useState<{ note: Note | null; locator: NoteLocator } | null>(null);
   const [selectionMemo, setSelectionMemo] = useState<{ locator: NoteLocator; top: number; left: number } | null>(null);
+  const [savingHighlight, setSavingHighlight] = useState(false);
   const articleRef = useRef<HTMLElement>(null);
   const floatingFigureRef = useRef<HTMLElement>(null);
   const lightboxCloseRef = useRef<HTMLButtonElement>(null);
@@ -190,8 +191,25 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     return () => window.clearTimeout(timer);
   }, [jumpToNoteId, anchoredNotes, detail.id]);
 
-  const refreshAnchoredNotes = () => {
-    void api.itemNotes(detail.id).then(setAnchoredNotes).catch(error => notify(String(error), 'error'));
+  const refreshAnchoredNotes = async () => {
+    try { setAnchoredNotes(await api.itemNotes(detail.id)); }
+    catch (error) { notify(String(error), 'error'); }
+  };
+
+  const saveColorHighlight = async (color: HighlightColor) => {
+    if (!selectionMemo || !interpretation || savingHighlight) return;
+    setSavingHighlight(true);
+    try {
+      await api.createAnchoredNote(detail.id, interpretation.id, '', { ...selectionMemo.locator, color });
+      await refreshAnchoredNotes();
+      setSelectionMemo(null);
+      window.getSelection()?.removeAllRanges();
+      notify('颜色高亮已保存到本地。', 'success');
+    } catch (error) {
+      notify(String(error), 'error');
+    } finally {
+      setSavingHighlight(false);
+    }
   };
 
   const openAnchoredNote = (note: Note) => {
@@ -223,8 +241,8 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
       return;
     }
     const rect = range.getBoundingClientRect();
-    const left = Math.max(8, Math.min(window.innerWidth - 116, rect.left + rect.width / 2 - 54));
-    const top = rect.bottom + 40 < window.innerHeight ? rect.bottom + 8 : Math.max(8, rect.top - 40);
+    const left = Math.max(8, Math.min(window.innerWidth - 246, rect.left + rect.width / 2 - 120));
+    const top = rect.bottom + 48 < window.innerHeight ? rect.bottom + 8 : Math.max(8, rect.top - 48);
     setSelectionMemo({ locator, top, left });
   };
 
@@ -365,11 +383,16 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
     </article>
 
     {qaOpen && <><button className="qa-drawer-scrim" aria-label="关闭 AI 问答" onClick={() => setQaOpen(false)} /><aside className="reader-qa-drawer"><button className="qa-drawer-close" onClick={() => setQaOpen(false)} aria-label="关闭问答"><X size={17} /></button><QaPanel paper={detail} notify={notify} onSource={openSource} /></aside></>}
-    {selectionMemo && createPortal(<button className="selection-memo-button" style={{ top: selectionMemo.top, left: selectionMemo.left }} onMouseDown={event => event.preventDefault()} onClick={() => {
-      setMemoComposer({ note: null, locator: selectionMemo.locator });
-      setSelectionMemo(null);
-      window.getSelection()?.removeAllRanges();
-    }}><NotebookPen size={14} />记备忘</button>, document.body)}
+    {selectionMemo && createPortal(<div className="selection-highlight-toolbar" role="toolbar" aria-label="选段高亮与备忘" style={{ top: selectionMemo.top, left: selectionMemo.left }} onMouseDown={event => event.preventDefault()}>
+      <Highlighter size={14} aria-hidden="true" />
+      {HIGHLIGHT_COLOR_OPTIONS.map(option => <button type="button" key={option.color} className="selection-color-button" data-color={option.color} aria-label={`${option.label}高亮`} title={`${option.label}高亮 · 无需填写备忘`} disabled={savingHighlight} onClick={() => saveColorHighlight(option.color)}><span /></button>)}
+      <span className="selection-toolbar-divider" />
+      <button className="selection-memo-button" disabled={savingHighlight} onClick={() => {
+        setMemoComposer({ note: null, locator: selectionMemo.locator });
+        setSelectionMemo(null);
+        window.getSelection()?.removeAllRanges();
+      }}><NotebookPen size={14} />记备忘</button>
+    </div>, document.body)}
     {memoComposer && <AnchoredMemoDialog detail={detail} note={memoComposer.note} locator={memoComposer.locator} onClose={() => setMemoComposer(null)} onChanged={refreshAnchoredNotes} notify={notify} />}
     {source && <Modal title={source.title} eyebrow="MARKDOWN SOURCE · CURRENT VERSION" onClose={() => setSource(null)} wide><div className="source-excerpt"><MarkdownWithNotes content={source.content} notes={[]} onOpenNote={() => undefined} /></div></Modal>}
     {expandedFigure && expandedFigureUrl && createPortal(<div className="figure-lightbox" role="dialog" aria-modal="true" aria-label={`${expandedFigure.label || '论文图片'}放大预览`} onClick={() => setExpandedFigurePath(null)}>
