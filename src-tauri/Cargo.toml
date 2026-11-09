@@ -1,6 +1,6 @@
 [package]
 name = "zotero-reader"
-version = "0.2.0"
+version = "0.3.0"
 description = "A local-first AI reading workspace for Zotero"
 edition = "2021"
 rust-version = "1.77.2"

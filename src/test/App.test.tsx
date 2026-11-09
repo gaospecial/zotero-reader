@@ -511,6 +511,17 @@ describe('Zotero Reader 工作台', () => {
     await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
   });
 
+  it('有文献但尚未解读的分类使用浅色状态，已有解读的分类不变', async () => {
+    render(<App />);
+    const uninterpreted = await screen.findByRole('button', { name: '研究方法 2 篇文献，1 篇有 PDF 全文，0 篇已解读' });
+    const interpreted = screen.getByRole('button', { name: '人工智能与教育 4 篇文献，4 篇有 PDF 全文，4 篇已解读' });
+    expect(uninterpreted.closest('.tree-row')).toHaveClass('uninterpreted');
+    expect(interpreted.closest('.tree-row')).not.toHaveClass('uninterpreted');
+
+    fireEvent.click(uninterpreted);
+    expect(uninterpreted.closest('.tree-row')).toHaveClass('active');
+  });
+
   it('未加入分类居中显示统计，加入后直接打开第二步预览', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: /^研究方法/ }));
