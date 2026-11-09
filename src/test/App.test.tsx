@@ -561,17 +561,43 @@ describe('Zotero Reader 工作台', () => {
     expect([...document.querySelectorAll('.service-card-title strong')].map(element => element.textContent)).toEqual(['Zotero 本地 API', 'Doc2X', 'DeepSeek']);
     const sections = document.querySelectorAll('.settings-section');
     expect(sections[0]).toHaveTextContent('服务连接');
-    expect(sections[1]).toHaveTextContent('系统默认提示词');
+    expect(sections[1]).toHaveTextContent('文献解读提示词');
     expect(sections[2]).toHaveTextContent('备份与恢复');
     expect(sections[3]).toHaveTextContent('打开 config.json');
   });
 
-  it('设置页展示完整文献解读提示词', async () => {
+  it('设置页原位展示完整文献解读提示词', async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole('button', { name: '设置' }));
-    fireEvent.click(await screen.findByRole('button', { name: /系统默认提示词/ }));
-    expect(screen.getByText(/描述作者采用的研究方法（如实验、调查、建模、定量\/定性分析等）。/)).toBeInTheDocument();
-    expect(screen.getByText(/给出自己对相关领域未来研究的建议和启示。/)).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: /文献解读提示词/ }));
+    const editor = await screen.findByRole('textbox', { name: '文献解读提示词内容' });
+    await waitFor(() => expect((editor as HTMLTextAreaElement).value).toContain('描述作者采用的研究方法（如实验、调查、建模、定量/定性分析等）。'));
+    expect((editor as HTMLTextAreaElement).value).toContain('给出自己对相关领域未来研究的建议和启示。');
+    expect(screen.getByRole('button', { name: '保存提示词' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '恢复默认' })).toBeEnabled();
+  });
+
+  it('提示词可保存修改并一键恢复默认配置', async () => {
+    const save = vi.spyOn(api, 'saveLiteraturePrompt');
+    const reset = vi.spyOn(api, 'resetLiteraturePrompt');
+    render(<App />);
+    fireEvent.click(await screen.findByRole('button', { name: '设置' }));
+    fireEvent.click(await screen.findByRole('button', { name: /文献解读提示词/ }));
+    const editor = await screen.findByRole('textbox', { name: '文献解读提示词内容' });
+    await waitFor(() => expect(editor).not.toBeDisabled());
+    fireEvent.change(editor, { target: { value: '  自定义文献解读提示词  ' } });
+    expect(screen.getByText('有未保存的修改')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '保存提示词' }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith('  自定义文献解读提示词  '));
+    expect(await screen.findByText('演示提示词已更新。')).toBeInTheDocument();
+    expect(editor).toHaveValue('自定义文献解读提示词');
+    expect(screen.getByRole('button', { name: '保存提示词' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: '恢复默认' }));
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText('演示提示词已恢复默认。')).toBeInTheDocument();
+    expect((editor as HTMLTextAreaElement).value).toContain('描述作者采用的研究方法（如实验、调查、建模、定量/定性分析等）。');
+    expect(await api.literaturePrompt()).toContain('给出自己对相关领域未来研究的建议和启示。');
   });
 
   it('已加入分类可通过右键菜单同步', async () => {

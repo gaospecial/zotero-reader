@@ -45,7 +45,7 @@ pub fn run(){
             commands::list_notes,commands::save_note,commands::list_item_notes,commands::create_anchored_note,commands::update_anchored_note,commands::delete_anchored_note,commands::list_qa,commands::clear_qa,commands::preview_import,commands::get_collection_overviews,commands::import_collections,commands::sync_collection,
             commands::list_pdf_choices,commands::choose_main_pdf,commands::retry_item,commands::regenerate_item,commands::cancel_item,
             commands::ask_question,commands::set_read_state,commands::trash_item,commands::restore_item,commands::sync_trash_to_zotero,
-            commands::sync_zotero,commands::get_asset,commands::get_source_excerpt,commands::export_backup,commands::restore_backup,commands::open_zotero_pdf,commands::open_config_file,commands::service_configuration,commands::set_api_key
+            commands::sync_zotero,commands::get_asset,commands::get_source_excerpt,commands::export_backup,commands::restore_backup,commands::open_zotero_pdf,commands::open_config_file,commands::service_configuration,commands::get_literature_prompt,commands::set_literature_prompt,commands::reset_literature_prompt,commands::set_api_key
         ])
         .run(tauri::generate_context!()).expect("error while running Zotero Reader");
 }

@@ -1,4 +1,4 @@
-import { ArchiveRestore, CheckCircle2, ChevronDown, DatabaseBackup, Download, ExternalLink, Eye, EyeOff, FileKey2, LoaderCircle, Server, Upload, Wifi, WifiOff } from 'lucide-react';
+import { ArchiveRestore, CheckCircle2, ChevronDown, DatabaseBackup, Download, ExternalLink, Eye, EyeOff, FileKey2, LoaderCircle, RotateCcw, Save, Server, Upload, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, isDesktop } from '../lib/api';
 import type { ServiceStatus } from '../types';
@@ -11,16 +11,21 @@ type ApiService = 'deepseek' | 'doc2x';
 export default function SettingsDialog({ services, onClose, onChanged, notify }: { services: ServiceStatus; onClose: () => void; onChanged: () => void; notify: (message: string, tone?: 'success' | 'error' | 'info') => void }) {
   const [busy, setBusy] = useState('');
   const [showPrompt, setShowPrompt] = useState(false);
+  const [prompt, setPrompt] = useState<string | null>(null);
+  const [savedPrompt, setSavedPrompt] = useState(literaturePrompt.trimEnd());
   const [zoteroBaseUrl, setZoteroBaseUrl] = useState('http://127.0.0.1:23119/api/users/0');
   const [keys, setKeys] = useState<Record<ApiService, string>>({ deepseek: '', doc2x: '' });
   const [visibleKeys, setVisibleKeys] = useState<Record<ApiService, boolean>>({ deepseek: false, doc2x: false });
+  const promptDirty = prompt !== null && prompt !== savedPrompt;
 
   useEffect(() => {
     let active = true;
-    api.serviceConfiguration().then(config => {
+    Promise.all([api.serviceConfiguration(), api.literaturePrompt()]).then(([config, currentPrompt]) => {
       if (!active) return;
       setZoteroBaseUrl(config.zoteroBaseUrl);
       setKeys({ deepseek: config.deepseekApiKey, doc2x: config.doc2xApiKey });
+      setPrompt(currentPrompt);
+      setSavedPrompt(currentPrompt);
     }).catch(error => notify(String(error), 'error'));
     return () => { active = false; };
   }, [notify]);
@@ -36,6 +41,20 @@ export default function SettingsDialog({ services, onClose, onChanged, notify }:
     setVisibleKeys(current => ({ ...current, [service]: false }));
     onChanged();
     notify(isDesktop ? `${service === 'deepseek' ? 'DeepSeek' : 'Doc2X'} 密钥已保存到应用配置文件。` : '演示配置已更新。', 'success');
+  });
+  const savePrompt = () => run('prompt-save', async () => {
+    if (prompt === null) return;
+    if (!prompt.trim()) return notify('提示词不能为空。', 'error');
+    const saved = await api.saveLiteraturePrompt(prompt);
+    setPrompt(saved);
+    setSavedPrompt(saved);
+    notify(isDesktop ? '提示词已保存到 config.json，后续文献解读将使用新配置。' : '演示提示词已更新。', 'success');
+  });
+  const resetPrompt = () => run('prompt-reset', async () => {
+    const restored = await api.resetLiteraturePrompt();
+    setPrompt(restored);
+    setSavedPrompt(restored);
+    notify(isDesktop ? '默认提示词已还原并保存到 config.json。' : '演示提示词已恢复默认。', 'success');
   });
 
   return <Modal title="连接与本地数据" eyebrow="PREFERENCES" onClose={onClose} wide><div className="settings-body">
@@ -56,7 +75,16 @@ export default function SettingsDialog({ services, onClose, onChanged, notify }:
         </article>;
       })}
     </div></section>
-    <section className="settings-section prompt-settings"><button onClick={() => setShowPrompt(!showPrompt)} aria-expanded={showPrompt}><span><strong>系统默认提示词</strong><small>默认完整原文 · 可在 config.json 中自定义</small></span><ChevronDown size={16} /></button>{showPrompt && <pre className="prompt-preview">{literaturePrompt}</pre>}</section>
+    <section className="settings-section prompt-settings">
+      <button className="prompt-toggle" onClick={() => setShowPrompt(!showPrompt)} aria-expanded={showPrompt}><span><strong>文献解读提示词</strong><small>原位编辑 · 保存后同步到 config.json</small></span><ChevronDown size={16} /></button>
+      {showPrompt && <div className="prompt-editor">
+        <textarea aria-label="文献解读提示词内容" value={prompt ?? ''} onChange={event => setPrompt(event.target.value)} placeholder={prompt === null ? '正在读取 config.json…' : undefined} disabled={prompt === null || !!busy} rows={18} spellCheck={false} />
+        <div className="prompt-editor-footer"><span>{promptDirty ? '有未保存的修改' : '已与 config.json 同步'}</span><div className="prompt-editor-actions">
+          <button className="secondary-button" onClick={resetPrompt} disabled={prompt === null || !!busy}>{busy === 'prompt-reset' ? <LoaderCircle className="spin" size={13} /> : <RotateCcw size={13} />}恢复默认</button>
+          <button className="primary-button" onClick={savePrompt} disabled={!promptDirty || !prompt?.trim() || !!busy}>{busy === 'prompt-save' ? <LoaderCircle className="spin" size={13} /> : <Save size={13} />}保存提示词</button>
+        </div></div>
+      </div>}
+    </section>
     <section className="settings-section"><h3>备份与恢复</h3><p className="settings-help">备份包含 SQLite 数据库、全部 Markdown 历史版本和论文图片；PDF 仍由 Zotero 管理，不会复制到备份。</p><div className="backup-actions"><button onClick={exportBackup} disabled={!!busy}>{busy === 'export' ? <LoaderCircle className="spin" size={16} /> : <Download size={16} />}<span><strong>导出本地备份</strong><small>数据库 + 解析版本 + 图片</small></span><DatabaseBackup size={18} /></button><button onClick={restoreBackup} disabled={!!busy}>{busy === 'restore' ? <LoaderCircle className="spin" size={16} /> : <Upload size={16} />}<span><strong>从备份恢复</strong><small>恢复前需明确确认</small></span><ArchiveRestore size={18} /></button></div></section>
     <section className="settings-section config-file-settings"><h3>配置文件</h3><div className="security-note"><FileKey2 size={15} /><p>密钥以明文保存在应用数据目录的 config.json 中，默认隐藏，点击眼睛可查看；不写入数据库或备份。文件中的显式配置优先，环境变量作为后备。模型、接口地址、Zotero 路径和文献解读提示词也可在该文件中显式配置。</p><button className="secondary-button" onClick={() => run('config', async () => { const message = await api.openConfig(); notify(message, 'success'); })} disabled={!!busy}>打开 config.json</button></div></section>
     <footer className="modal-footer"><a href="https://www.zotero.org/support/dev/web_api/v3/local_api" target="_blank" rel="noreferrer">Zotero 本地 API 说明<ExternalLink size={12} /></a><button className="primary-button" onClick={onClose}>完成</button></footer>

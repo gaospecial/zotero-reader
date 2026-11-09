@@ -88,6 +88,21 @@ pub fn set(key:&str,value:&str)->Result<()>{
     set_from(path,key,value)
 }
 
+pub fn literature_prompt()->String{
+    get(LITERATURE_PROMPT).unwrap_or_else(||DEFAULT_PROMPT.trim().to_string())
+}
+
+pub fn set_literature_prompt(prompt:&str)->Result<String>{
+    let prompt=prompt.trim();
+    if prompt.is_empty(){anyhow::bail!("提示词不能为空");}
+    set(LITERATURE_PROMPT,prompt)?;
+    Ok(prompt.to_string())
+}
+
+pub fn reset_literature_prompt()->Result<String>{
+    set_literature_prompt(DEFAULT_PROMPT)
+}
+
 #[cfg(test)]
 mod tests{
     use super::*;

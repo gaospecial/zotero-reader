@@ -2,9 +2,11 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { demoAnswer, demoBootstrap, demoCollections, demoDetail } from './demo';
 import type { Attachment, Bootstrap, CollectionOverview, ImportPreview, ImportResult, LibraryQuery, Note, NoteLocator, Paper, PaperDetail, PdfChoice, QaEvent, QaMessage, ServiceConfiguration } from '../types';
+import defaultLiteraturePrompt from '../../prompts/literature_interpretation.txt?raw';
 
 export const isDesktop = '__TAURI_INTERNALS__' in window;
 const delay = (ms = 250) => new Promise(resolve => setTimeout(resolve, ms));
+let localLiteraturePrompt = defaultLiteraturePrompt.trimEnd();
 const localPapers = structuredClone(demoBootstrap.papers);
 const localNotes = new Map<string, string>();
 const localAnchoredNotes: Note[] = [];
@@ -116,6 +118,17 @@ export const api = {
   openPdf: (itemKey: string) => command<void>('open_zotero_pdf', { itemKey }, () => undefined),
   openConfig: () => command<string>('open_config_file', undefined, () => '演示模式：桌面端将打开应用数据目录中的 config.json'),
   serviceConfiguration: () => command<ServiceConfiguration>('service_configuration', undefined, () => ({ ...localServiceConfig })),
+  literaturePrompt: () => command<string>('get_literature_prompt', undefined, () => localLiteraturePrompt),
+  saveLiteraturePrompt: (prompt: string) => command<string>('set_literature_prompt', { prompt }, () => {
+    const normalized = prompt.trim();
+    if (!normalized) throw new Error('提示词不能为空');
+    localLiteraturePrompt = normalized;
+    return localLiteraturePrompt;
+  }),
+  resetLiteraturePrompt: () => command<string>('reset_literature_prompt', undefined, () => {
+    localLiteraturePrompt = defaultLiteraturePrompt.trimEnd();
+    return localLiteraturePrompt;
+  }),
   setApiKey: (service: 'deepseek' | 'doc2x', key: string) => command<void>('set_api_key', { service, key }, () => {
     if (service === 'deepseek') { demoBootstrap.services.deepseekConfigured = true; localServiceConfig.deepseekApiKey = key; }
     else { demoBootstrap.services.doc2xConfigured = true; localServiceConfig.doc2xApiKey = key; }
