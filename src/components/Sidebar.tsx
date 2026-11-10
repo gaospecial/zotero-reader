@@ -1,6 +1,7 @@
 import { BookOpen, ChevronDown, ChevronRight, Folder, FolderOpen, Import, Library, LoaderCircle, NotebookPen, PanelLeftClose, PanelLeftOpen, Plus, Recycle, RefreshCw, Star, Wifi, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import appIcon from '../../src-tauri/icons/64x64.png';
+import packageManifest from '../../package.json';
 import type { Collection, LibraryStats, ServiceStatus, ViewName } from '../types';
 
 const expandedCollectionsStorageKey = 'reader-expanded-collections';
@@ -69,7 +70,7 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
     </div>;
   };
   return <aside className="sidebar">
-    <div className="brand"><img className="brand-app-icon" src={appIcon} alt="Zotero Reader 应用图标" /><div><strong>Zotero</strong><span>READER</span></div><span className="brand-version">0.1</span></div>
+    <div className="brand"><img className="brand-app-icon" src={appIcon} alt="Zotero Reader 应用图标" /><div><strong>Zotero</strong><span>READER</span></div><span className="brand-version" title={`版本 ${packageManifest.version}`}>{packageManifest.version}</span></div>
     <button className="sidebar-toggle" onClick={onToggleCollapsed} aria-label={collapsed ? '展开左侧栏' : '收起左侧栏'} title={collapsed ? '展开左侧栏' : '收起左侧栏'}>{collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}</button>
     {!collapsed && <div className="sidebar-resize-handle" role="separator" aria-label="调整左侧栏宽度" aria-orientation="vertical" aria-valuemin={200} aria-valuemax={360} aria-valuenow={width} aria-valuetext={`${width} 像素`} title="拖动调整侧栏宽度" tabIndex={0} onPointerDown={startSidebarResize} onPointerMove={moveSidebarResize} onPointerUp={endSidebarResize} onPointerCancel={endSidebarResize} onKeyDown={resizeSidebarWithKeyboard} onDoubleClick={() => onWidthChange(224)} />}
     <button className="import-button" onClick={onImport} title="导入 Zotero 分类"><Import size={16} /><span>导入 Zotero 分类</span><Plus size={15} /></button>

@@ -29,4 +29,6 @@
 4. `src-tauri/Cargo.lock` 中 `zotero-reader` 包的 `version`，不要修改其他依赖包的版本；
 5. `src-tauri/tauri.conf.json` 的 `version`。
 
+左侧栏顶部 `.brand-version` 也属于版本展示，但不得在 `src/components/Sidebar.tsx` 或其他界面代码中写死版本号。该组件必须直接读取 `package.json` 的 `version` 并展示完整的 SemVer 版本，因此界面不是额外的手动同步位置；更新版本后应运行相关 React 测试，确认界面与版本基准一致。
+
 提交前必须检查暂存区包含上述版本文件的变更，并核对这些版本号一致。正式发布时可在对应提交上创建 `vX.Y.Z` 标签，例如 `v0.2.0`；普通提交不必打标签，标签不能替代提交内的版本更新。

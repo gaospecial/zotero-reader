@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import packageManifest from '../../package.json';
 import App from '../App';
 import { api } from '../lib/api';
 import { demoDetail, demoPapers } from '../lib/demo';
@@ -10,6 +11,11 @@ afterEach(() => {
 });
 
 describe('Zotero Reader 工作台', () => {
+  it('左侧栏显示与 package.json 一致的完整版本号', () => {
+    render(<App />);
+    expect(screen.getByText(packageManifest.version)).toHaveClass('brand-version');
+  });
+
   it('列表星标可切换并持久化，且不改变已读状态', async () => {
     const setRead = vi.spyOn(api, 'setRead');
     render(<App />);

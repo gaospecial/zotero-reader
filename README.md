@@ -114,7 +114,7 @@ npm run desktop:build -- --bundles app
 
 ## 提交与版本号
 
-所有新 commit 都必须更新版本号，并采用 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 的 `MAJOR.MINOR.PATCH` 格式。版本变更必须与该提交的其他变更位于同一个 commit，并同步更新 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 和 `src-tauri/tauri.conf.json`。
+所有新 commit 都必须更新版本号，并采用 [Semantic Versioning 2.0.0](https://semver.org/lang/zh-CN/) 的 `MAJOR.MINOR.PATCH` 格式。版本变更必须与该提交的其他变更位于同一个 commit，并同步更新 `package.json`、`package-lock.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock` 和 `src-tauri/tauri.conf.json`。左侧栏顶部版本号由 `src/components/Sidebar.tsx` 直接读取 `package.json`，不得在界面代码中另外写死。
 
 完整递增规则、版本同步位置及 `amend`、发布标签的处理方式见 `AGENTS.md` 的“Git 提交与版本号”。历史提交不追溯修改。
 
