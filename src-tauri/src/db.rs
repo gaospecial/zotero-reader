@@ -232,7 +232,11 @@ pub fn set_item_collections(db: &SharedDb, item_id: &str, keys: &[String]) -> Re
 pub fn set_state(db: &SharedDb, item_id: &str, field: &str, value: &str) -> Result<()> {
     if !["pdf_state","parse_state","ai_state","zotero_state","local_state","read_state"].contains(&field) { anyhow::bail!("不支持的状态字段"); }
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
-    conn.execute(&format!("UPDATE items SET {field}=?1,updated_at=?2 WHERE id=?3"),params![value,Utc::now().to_rfc3339(),item_id])?;
+    if field == "read_state" {
+        conn.execute("UPDATE items SET read_state=?1 WHERE id=?2",params![value,item_id])?;
+    } else {
+        conn.execute(&format!("UPDATE items SET {field}=?1,updated_at=?2 WHERE id=?3"),params![value,Utc::now().to_rfc3339(),item_id])?;
+    }
     Ok(())
 }
 
@@ -409,6 +413,23 @@ mod tests {
         let p = get_paper(&db,&id).unwrap();
         assert_eq!(p.title,"New"); assert_eq!(p.title_zh,"中文标题"); assert_eq!(p.one_sentence,"一句话");
     }
+    #[test]
+    fn read_state_changes_preserve_update_order() {
+        let db = open(Path::new(":memory:")).unwrap();
+        let first = upsert_paper(&db,"FIRST",1,"First",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        let second = upsert_paper(&db,"SECOND",1,"Second",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        {
+            let conn = db.lock().unwrap();
+            conn.execute("UPDATE items SET updated_at='2024-01-01T00:00:00Z' WHERE id=?1",[&first]).unwrap();
+            conn.execute("UPDATE items SET updated_at='2024-01-02T00:00:00Z' WHERE id=?1",[&second]).unwrap();
+        }
+        let updated_at = get_paper(&db,&first).unwrap().updated_at;
+        set_state(&db,&first,"read_state","reading").unwrap();
+        assert_eq!(get_paper(&db,&first).unwrap().updated_at,updated_at);
+        let papers = list_papers(&db,LibraryQuery{search:None,collection:None,status:None,view:None,sort:None}).unwrap();
+        assert_eq!(papers.iter().map(|paper|paper.id.as_str()).collect::<Vec<_>>(),vec![second,first]);
+    }
+
     #[test]
     fn regenerating_interpretation_preserves_read_state(){
         let db=open(Path::new(":memory:")).unwrap();

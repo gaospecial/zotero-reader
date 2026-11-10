@@ -73,10 +73,8 @@ export default function PaperList({ papers, selectedId, readerDetails, expandedI
     const list = listRef.current;
     const target = document.getElementById(`paper-${paper.id}`);
     if (list && target) {
-      const listRect = list.getBoundingClientRect();
       const targetRect = target.getBoundingClientRect();
-      const fullyVisible = targetRect.top >= listRect.top && targetRect.bottom <= listRect.bottom;
-      readerAnchorRef.current = { id: paper.id, top: fullyVisible ? targetRect.top : listRect.top, action };
+      readerAnchorRef.current = { id: paper.id, top: targetRect.top, action };
     }
   };
   const openReader = (paper: Paper) => {

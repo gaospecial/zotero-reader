@@ -96,9 +96,14 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
   useEffect(() => {
     const article = articleRef.current;
     const scroller = article?.closest('.inline-reading-list');
-    if (!article || !(scroller instanceof HTMLElement) || !active || !hasFigure) {
+    if (!article || !(scroller instanceof HTMLElement) || !hasFigure) {
       figureFloatingRef.current = false;
       setFigureFloating(false);
+      return;
+    }
+    if (!active) {
+      // 保持前一篇文章的布局高度，仅隐藏非激活文章的配图，避免后续标题跳动。
+      setFigureFloatPosition(current => current.visible ? { ...current, visible: false } : current);
       return;
     }
     const update = () => {

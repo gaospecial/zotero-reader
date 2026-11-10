@@ -125,6 +125,31 @@ describe('Zotero Reader 工作台', () => {
     expect(unreadNavigation).toHaveTextContent('未读2');
   });
 
+  it('打开未读文献并刷新状态后保持列表顺序与选中项', async () => {
+    const papers = demoPapers.map(paper => ({ ...paper }));
+    const base = await api.bootstrap();
+    vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({ ...base, papers: [...papers] }));
+    const listLibrary = vi.spyOn(api, 'listLibrary').mockImplementation(async () => [...papers]);
+    vi.spyOn(api, 'detail').mockImplementation(async id => demoDetail(papers.find(paper => paper.id === id)!));
+    const setRead = vi.spyOn(api, 'setRead').mockImplementation(async (id, readState) => {
+      papers.find(item => item.id === id)!.readState = readState as (typeof papers)[number]['readState'];
+    });
+
+    render(<App />);
+    await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
+    const originalOrder = [...document.querySelectorAll('.paper-row')].map(row => row.id);
+    fireEvent.click(document.querySelector('#paper-demo-2 .paper-content')!);
+    await screen.findByRole('heading', { name: '从“给答案”到“促思考”：智能辅导反馈设计的实证研究', level: 1 });
+    const callsBeforeOpen = listLibrary.mock.calls.length;
+    fireEvent.click(document.querySelector('#paper-demo-4 .paper-content')!);
+
+    await waitFor(() => expect(setRead).toHaveBeenCalledWith('demo-4', 'reading'));
+    await waitFor(() => expect(listLibrary.mock.calls.length).toBeGreaterThan(callsBeforeOpen));
+    await waitFor(() => expect(document.querySelector('#paper-demo-4')).not.toHaveClass('unread'));
+    expect([...document.querySelectorAll('.paper-row')].map(row => row.id)).toEqual(originalOrder);
+    expect(document.querySelector('#paper-demo-4')).toHaveClass('selected');
+  });
+
   it('文献信息显示第一作者、粗斜体期刊缩写和年份', async () => {
     render(<App />);
     await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
