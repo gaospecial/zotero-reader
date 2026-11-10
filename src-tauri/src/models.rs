@@ -169,6 +169,7 @@ pub struct LibraryStats {
     pub processing: i64,
     pub trash: i64,
     pub pending_sync: i64,
+    pub notes: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -29,7 +29,7 @@ export interface NoteLocator {
 export interface Note { id: string; itemId: string; interpretationId: string | null; title: string; content: string; locator: string | null; updatedAt: string }
 export interface QaMessage { id: string; itemId: string; role: 'user' | 'assistant'; content: string; sources: string[]; visualRefs: string[]; inference: boolean; usage: Record<string, number> | null; createdAt: string }
 export interface LibraryQuery { search?: string; collection?: string; status?: string; view?: string; sort?: string }
-export interface LibraryStats { total: number; unread: number; processing: number; trash: number; pendingSync: number }
+export interface LibraryStats { total: number; unread: number; processing: number; trash: number; pendingSync: number; notes: number }
 export interface ServiceStatus { zoteroConnected: boolean; deepseekConfigured: boolean; doc2xConfigured: boolean; demoMode: boolean }
 export interface ServiceConfiguration { zoteroBaseUrl: string; deepseekApiKey: string; doc2xApiKey: string }
 export interface Bootstrap { papers: Paper[]; collections: Collection[]; stats: LibraryStats; services: ServiceStatus }

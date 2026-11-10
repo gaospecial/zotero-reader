@@ -39,7 +39,7 @@ export const demoPapers: Paper[] = titles.map(([titleZh, title, oneSentence], in
 }));
 export const demoBootstrap: Bootstrap = {
   papers: demoPapers, collections: demoCollections,
-  stats: { total: 8, unread: 3, processing: 1, trash: 0, pendingSync: 0 },
+  stats: { total: 8, unread: 3, processing: 1, trash: 0, pendingSync: 0, notes: 0 },
   services: { zoteroConnected: false, deepseekConfigured: false, doc2xConfigured: false, demoMode: true },
 };
 export function demoDetail(paper: Paper): PaperDetail {

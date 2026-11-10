@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { api } from '../lib/api';
-import { createNoteLocator, HIGHLIGHT_COLOR_OPTIONS, parseNoteLocator } from '../lib/textAnchors';
+import { applyNoteHighlights, createNoteLocator, HIGHLIGHT_COLOR_OPTIONS, parseNoteLocator } from '../lib/textAnchors';
 import type { HighlightColor, Note, NoteLocator, PaperDetail } from '../types';
 import AnchoredMemoDialog from './AnchoredMemoDialog';
 import MarkdownWithNotes from './MarkdownWithNotes';
@@ -201,7 +201,10 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
   useEffect(() => {
     if (!jumpToNoteId || !anchoredNotes.length) return;
     const note = anchoredNotes.find(item => item.id === jumpToNoteId);
-    if (!note) return;
+    if (!note) {
+      onNoteJumpHandled?.();
+      return;
+    }
     const timer = window.setTimeout(() => {
       const locator = parseNoteLocator(note.locator);
       if (!locator) {
@@ -209,23 +212,37 @@ export default function Reader({ detail, active = true, fontSize = 12, onBack, o
         onNoteJumpHandled?.();
         return;
       }
-      const target = articleRef.current?.querySelector<HTMLElement>(`mark[data-note-id="${note.id}"]`);
+      const article = articleRef.current;
+      const section = article?.querySelector<HTMLElement>(`[data-section-index="${locator.sectionIndex}"]`);
+      const content = section?.querySelector<HTMLElement>('.markdown-content');
+      let target = article?.querySelector<HTMLElement>(`mark[data-note-id="${note.id}"]`);
+      let matchedOldVersion = false;
+      if (!target && content) {
+        const matched = applyNoteHighlights(content, [note]);
+        target = content.querySelector<HTMLElement>(`mark[data-note-id="${note.id}"]`);
+        matchedOldVersion = matched.has(note.id) && note.interpretationId !== interpretation?.id;
+      }
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         target.classList.add('memo-highlight-focus');
         window.setTimeout(() => target.classList.remove('memo-highlight-focus'), 1600);
+        if (matchedOldVersion) notify('这条备忘属于旧版解读，已定位到当前解读中的相同文字。', 'info');
+      } else if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        notify('未找到完全相同的文字，已定位到原章节；引用与备忘内容仍完整保留。', 'info');
       } else {
-        notify('这条备忘属于旧版解读，或原文已变化；引用与备忘内容仍完整保留。', 'info');
+        notify('这条备忘所属章节已不存在；引用与备忘内容仍完整保留。', 'info');
       }
-      setMemoComposer({ note, locator });
       onNoteJumpHandled?.();
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [jumpToNoteId, anchoredNotes, detail.id]);
+  }, [jumpToNoteId, anchoredNotes, detail.id, interpretation?.id, notify, onNoteJumpHandled]);
 
   const refreshAnchoredNotes = async () => {
-    try { setAnchoredNotes(await api.itemNotes(detail.id)); }
-    catch (error) { notify(String(error), 'error'); }
+    try {
+      setAnchoredNotes(await api.itemNotes(detail.id));
+      onChanged();
+    } catch (error) { notify(String(error), 'error'); }
   };
 
   const saveColorHighlight = async (color: HighlightColor) => {

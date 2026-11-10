@@ -78,7 +78,7 @@ export default function Sidebar({ view, onView, collection, onCollection, collec
       <button className={(view === 'library' || view === 'reader') && collection === 'all' ? 'active' : ''} onClick={() => { onCollection('all'); onView('library'); }} title="全部文献"><Library size={17} /><span>全部文献</span><small>{stats.total}</small></button>
       <button className={(view === 'library' || view === 'reader') && collection === 'unread' ? 'active' : ''} onClick={() => { onCollection('unread'); onView('library'); }} title="未读"><BookOpen size={17} /><span>未读</span><small>{stats.unread}</small></button>
       <button className={(view === 'library' || view === 'reader') && collection === 'starred' ? 'active' : ''} onClick={() => { onCollection('starred'); onView('library'); }} aria-label="星标" title="星标"><Star size={17} fill={(view === 'library' || view === 'reader') && collection === 'starred' ? 'currentColor' : 'none'} /><span>星标</span><small>{starredCount || ''}</small></button>
-      <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')} title="备忘"><NotebookPen size={17} /><span>备忘</span></button>
+      <button className={view === 'notes' ? 'active' : ''} onClick={() => onView('notes')} title="备忘"><NotebookPen size={17} /><span>备忘</span><small>{stats.notes || ''}</small></button>
       <button className={view === 'trash' ? 'active' : ''} onClick={() => onView('trash')} title="回收站"><Recycle size={17} /><span>回收站</span><small>{stats.trash || ''}</small></button>
     </nav>
     <div className="sidebar-section"><div className="section-label"><span>ZOTERO 分类</span></div><div className="collection-tree">{roots.map(root => renderCollection(root))}</div></div>

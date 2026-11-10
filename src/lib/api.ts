@@ -23,7 +23,7 @@ export const api = {
   bootstrap: () => command<Bootstrap>('get_bootstrap', undefined, () => {
     const base = structuredClone(demoBootstrap);
     const papers = structuredClone(localPapers);
-    return { ...base, papers, stats: { ...base.stats, unread: papers.filter(paper => paper.localState === 'active' && paper.readState === 'unread').length } };
+    return { ...base, papers, stats: { ...base.stats, unread: papers.filter(paper => paper.localState === 'active' && paper.readState === 'unread').length, notes: localNotes.size + localAnchoredNotes.length } };
   }),
   connect: () => command<boolean>('connect_zotero', undefined, async () => { await delay(); return true; }),
   listLibrary: (query: LibraryQuery) => command<Paper[]>('list_library', { query }, () => {
@@ -43,7 +43,10 @@ export const api = {
       && (!query.status || (query.status === 'unread' ? p.readState === 'unread' : query.status === 'read' ? p.readState === 'read' : p.parseState === 'failed' || p.aiState === 'failed')));
   }),
   detail: (itemId: string) => command<PaperDetail>('get_paper_detail', { itemId }, () => ({ ...demoDetail(localPapers.find(p => p.id === itemId)!), note: localNotes.get(itemId) ?? demoDetail(localPapers.find(p => p.id === itemId)!).note })),
-  saveNote: (itemId: string, content: string) => command<void>('save_note', { itemId, content }, () => { localNotes.set(itemId, content); }),
+  saveNote: (itemId: string, content: string) => command<void>('save_note', { itemId, content }, () => {
+    if (content.trim()) localNotes.set(itemId, content.trim());
+    else localNotes.delete(itemId);
+  }),
   itemNotes: (itemId: string) => command<Note[]>('list_item_notes', { itemId }, () => structuredClone(localAnchoredNotes.filter(note => note.itemId === itemId))),
   createAnchoredNote: (itemId: string, interpretationId: string, content: string, locator: NoteLocator) => command<string>('create_anchored_note', { itemId, interpretationId, content, locator }, () => {
     const id = crypto.randomUUID();

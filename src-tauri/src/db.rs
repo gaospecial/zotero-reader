@@ -194,6 +194,7 @@ pub fn stats(db: &SharedDb) -> Result<LibraryStats> {
         processing: conn.query_row("SELECT COUNT(*) FROM items WHERE local_state='active' AND pdf_state='available' AND (parse_state IN ('queued','processing','retry_wait') OR ai_state IN ('queued','generating','vision_wait'))", [], |r| r.get(0))?,
         trash: conn.query_row("SELECT COUNT(*) FROM items WHERE local_state='trash'", [], |r| r.get(0))?,
         pending_sync: conn.query_row("SELECT COUNT(*) FROM items WHERE local_state='trash' AND pending_zotero_trash=1", [], |r| r.get(0))?,
+        notes: conn.query_row("SELECT COUNT(*) FROM notes WHERE deleted=0", [], |r| r.get(0))?,
     })
 }
 
@@ -452,20 +453,24 @@ mod tests {
         let db = open(Path::new(":memory:")).unwrap();
         let id = upsert_paper(&db,"ANCHOR",1,"Paper",&[],None,"","","","","","journalArticle",&[],false).unwrap();
         save_note(&db,&id,"整篇总备忘").unwrap();
+        assert_eq!(stats(&db).unwrap().notes,1);
         let locator = NoteLocator{version:1,section_index:2,section_title:"研究方法".into(),exact:"随机分配的准实验设计".into(),prefix:"研究采用".into(),suffix:"并记录过程".into(),start:4,end:15,color:HighlightColor::Yellow};
         let note_id = create_anchored_note(&db,&id,"interpretation-v1","需要复核随机化过程",&locator).unwrap();
+        assert_eq!(stats(&db).unwrap().notes,2);
         let notes = list_item_notes(&db,&id).unwrap();
         assert_eq!(notes.len(),1);
         assert_eq!(notes[0].interpretation_id.as_deref(),Some("interpretation-v1"));
         assert_eq!(get_detail(&db,&id).unwrap().note,"整篇总备忘");
         let updated_locator = NoteLocator{color:HighlightColor::Green,..locator};
         update_anchored_note(&db,&note_id,"已核对分配隐藏",&updated_locator).unwrap();
+        assert_eq!(stats(&db).unwrap().notes,2);
         let updated = list_item_notes(&db,&id).unwrap().remove(0);
         assert_eq!(updated.content,"已核对分配隐藏");
         assert_eq!(serde_json::from_str::<NoteLocator>(&updated.locator.unwrap()).unwrap().color,HighlightColor::Green);
         assert_eq!(list_notes(&db,Some("准实验设计")).unwrap().len(),1);
         delete_anchored_note(&db,&note_id).unwrap();
         assert!(list_item_notes(&db,&id).unwrap().is_empty());
+        assert_eq!(stats(&db).unwrap().notes,1);
         assert_eq!(get_detail(&db,&id).unwrap().note,"整篇总备忘");
     }
 

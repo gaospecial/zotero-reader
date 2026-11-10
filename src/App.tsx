@@ -21,7 +21,7 @@ export default function App() {
   const [starredIds, setStarredIds] = useState<Record<string, boolean>>({});
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionOverviews, setCollectionOverviews] = useState<Record<string, CollectionOverview>>({});
-  const [stats, setStats] = useState<LibraryStats>({ total: 0, unread: 0, processing: 0, trash: 0, pendingSync: 0 });
+  const [stats, setStats] = useState<LibraryStats>({ total: 0, unread: 0, processing: 0, trash: 0, pendingSync: 0, notes: 0 });
   const [services, setServices] = useState<ServiceStatus>(demoBootstrap.services);
   const [search, setSearch] = useState('');
   const [collection, setCollection] = useState('all');
@@ -111,6 +111,10 @@ export default function App() {
     const noteId = typeof additiveOrNote === 'string' ? additiveOrNote : undefined;
     try {
       const detail = await api.detail(id);
+      if (typeof paper === 'string') {
+        setSearch('');
+        setCollection('all');
+      }
       setReaderDetails(current => ({ ...current, [id]: detail }));
       setExpandedIds(current => [...new Set([...current, id])]);
       setSelected(detail);
@@ -220,7 +224,7 @@ export default function App() {
     </div>
     {importOpen && <ImportDialog collections={collectionsWithOverviews} initialKeys={importKeys} initialPreview={importInitialPreview} startAtPreview={importStartAtPreview} onClose={closeImport} onImported={() => { void refresh(); void refreshCollectionOverviews(); }} notify={notify} />}
     {settingsOpen && <SettingsDialog services={services} onClose={() => setSettingsOpen(false)} onChanged={refresh} notify={notify} />}
-    {memoOpen && selected && <MemoDialog detail={selected} onClose={() => { setMemoOpen(false); api.detail(selected.id).then(detail => { setSelected(detail); setReaderDetails(current => ({ ...current, [detail.id]: detail })); }); }} notify={notify} />}
+    {memoOpen && selected && <MemoDialog detail={selected} onClose={() => { setMemoOpen(false); void refreshMeta().catch(error => notify(String(error), 'error')); api.detail(selected.id).then(detail => { setSelected(detail); setReaderDetails(current => ({ ...current, [detail.id]: detail })); }).catch(error => notify(String(error), 'error')); }} notify={notify} />}
     {toast && <Toast message={toast.message} tone={toast.tone} onClose={() => setToast(null)} />}
   </div>;
 }
