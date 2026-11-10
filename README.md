@@ -118,6 +118,8 @@ npm run desktop:build -- --bundles app
 
 完整递增规则、版本同步位置及 `amend`、发布标签的处理方式见 `AGENTS.md` 的“Git 提交与版本号”。历史提交不追溯修改。
 
+项目更新日志见 [CHANGELOG.md](CHANGELOG.md)，按版本记录新增、变更和修复等内容。提交包含重要变更时，应在同一 commit 中同步更新日志及版本对比链接；具体维护规则见 `AGENTS.md` 的“更新日志”。
+
 ## 持续集成
 
 GitHub Actions 工作流位于 `.github/workflows/ci.yml`，在以下情况自动运行：
