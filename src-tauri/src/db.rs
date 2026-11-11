@@ -198,9 +198,22 @@ pub fn stats(db: &SharedDb) -> Result<LibraryStats> {
     })
 }
 
+#[cfg(test)]
 pub fn upsert_collection(db: &SharedDb, collection: &Collection, version: i64) -> Result<()> {
     let conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
     conn.execute("INSERT INTO collections(key,name,parent_key,version) VALUES(?1,?2,?3,?4) ON CONFLICT(key) DO UPDATE SET name=excluded.name,parent_key=excluded.parent_key,version=excluded.version,deleted=0", params![collection.key,collection.name,collection.parent_key,version])?;
+    Ok(())
+}
+
+pub fn reconcile_collections(db: &SharedDb, collections: &[Collection]) -> Result<()> {
+    let mut conn = db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
+    let tx = conn.transaction()?;
+    tx.execute("UPDATE collections SET deleted=1", [])?;
+    for collection in collections {
+        tx.execute("INSERT INTO collections(key,name,parent_key,version,deleted) VALUES(?1,?2,?3,0,0) ON CONFLICT(key) DO UPDATE SET name=excluded.name,parent_key=excluded.parent_key,version=0,deleted=0", params![collection.key,collection.name,collection.parent_key])?;
+    }
+    tx.execute("UPDATE collections SET joined=0 WHERE deleted=1", [])?;
+    tx.commit()?;
     Ok(())
 }
 

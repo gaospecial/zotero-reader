@@ -360,7 +360,7 @@ pub async fn import_collections(state: &crate::state::AppState, selected: &[Stri
     let items=zotero.top_items(&keys).await?;
     let preflight=preflight_pdfs(&zotero,&items).await?;
     let unreadable:BTreeSet<String>=preflight.issues.iter().map(|issue|issue.attachment_key.clone()).collect();
-    for c in &all { db::upsert_collection(&state.db,c,0)?; }
+    db::reconcile_collections(&state.db,&all)?;
     let mut result=ImportResult{imported:0,queued:0,skipped:0};
     let mut choices=Vec::new();
     for item in items {
@@ -377,7 +377,7 @@ pub async fn import_collections(state: &crate::state::AppState, selected: &[Stri
 pub async fn sync_existing(state: &crate::state::AppState) -> Result<usize> {
     let zotero = state.zotero();
     let collections = zotero.collections().await?;
-    for collection in collections { db::upsert_collection(&state.db, &collection, 0)?; }
+    db::reconcile_collections(&state.db,&collections)?;
     let known: BTreeSet<String> = db::active_keys(&state.db)?.into_iter().collect();
     let since = {
         let conn = state.db.lock().map_err(|_| anyhow::anyhow!("数据库锁定失败"))?;
@@ -601,6 +601,34 @@ mod tests {
         let readable=db::paper_by_zotero_key(&db,"GOOD").unwrap().unwrap();
         assert_eq!(readable.pdf_state,"available");assert_eq!(readable.parse_state,"queued");
         collections.assert_async().await;top.assert_async().await;bad_children.assert_async().await;good_children.assert_async().await;bad_metadata.assert_async().await;bad_file.assert_async().await;good_metadata.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn sync_removes_collections_deleted_in_zotero_without_deleting_papers(){
+        let db=db::open(Path::new(":memory:")).unwrap();
+        for (key,name) in [("KEEP","保留分类"),("DELETED","已删除分类")]{
+            db::upsert_collection(&db,&Collection{key:key.into(),name:name.into(),parent_key:None,item_count:0,pdf_count:0,interpreted_count:0,joined:false},0).unwrap();
+        }
+        db::mark_collections_joined(&db,&BTreeSet::from(["KEEP".to_string(),"DELETED".to_string()])).unwrap();
+        let item_id=db::upsert_paper(&db,"PAPER",1,"保留文献",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        db::set_item_collections(&db,&item_id,&["DELETED".to_string()]).unwrap();
+        assert_eq!(db::list_collections(&db).unwrap().len(),2);
+
+        let mut server=mockito::Server::new_async().await;
+        let collections=server.mock("GET","/api/users/0/collections").match_query(mockito::Matcher::Any).with_status(200).with_header("content-type","application/json")
+            .with_body(json!([{"key":"KEEP","data":{"name":"保留分类","parentCollection":false}}]).to_string()).create_async().await;
+        let items=server.mock("GET","/api/users/0/items/top").match_query(mockito::Matcher::Any).with_status(200).with_header("content-type","application/json").with_body("[]").create_async().await;
+        let temp=tempfile::tempdir().unwrap();
+        let state=crate::state::AppState{db:db.clone(),data_dir:temp.path().to_path_buf(),http:Client::new(),zotero_base:format!("{}/api/users/0",server.url()),jobs:std::sync::Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),collection_sync:std::sync::Arc::new(tokio::sync::Mutex::new(()))};
+        sync_existing(&state).await.unwrap();
+
+        let remaining=db::list_collections(&db).unwrap();
+        assert_eq!(remaining.iter().map(|collection|collection.key.as_str()).collect::<Vec<_>>(),vec!["KEEP"]);
+        assert!(remaining[0].joined);
+        let deleted_joined={let conn=db.lock().unwrap();conn.query_row("SELECT joined FROM collections WHERE key='DELETED'",[],|row|row.get::<_,i64>(0)).unwrap()};
+        assert_eq!(deleted_joined,0);
+        assert!(db::get_paper(&db,&item_id).unwrap().collections.contains(&"DELETED".to_string()));
+        collections.assert_async().await;items.assert_async().await;
     }
 
     #[tokio::test]

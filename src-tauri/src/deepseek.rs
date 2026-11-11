@@ -68,7 +68,7 @@ pub async fn generate(state:&AppState,paper:&Paper,markdown:(&str,&str),figures:
 
 fn headings(markdown:&str)->Vec<String>{markdown.lines().filter_map(|l|l.strip_prefix('#').map(|h|h.trim_start_matches('#').trim().to_string())).filter(|h|!h.is_empty()).take(30).collect()}
 
-pub async fn ask(state:Arc<AppState>,app:AppHandle,paper:Paper,question:String)->Result<()>{
+pub async fn ask<R:tauri::Runtime>(state:Arc<AppState>,app:AppHandle<R>,paper:Paper,question:String)->Result<()>{
     let event_id=uuid::Uuid::new_v4().to_string();
     let emit=|kind:&str,text:Option<String>,sources:Option<Vec<String>>,visual_refs:Option<Vec<String>>,usage:Option<Value>|{
         let _=app.emit("qa-event",QaEvent{item_id:paper.id.clone(),message_id:event_id.clone(),kind:kind.into(),text,sources,visual_refs,usage});
@@ -90,7 +90,7 @@ pub async fn ask(state:Arc<AppState>,app:AppHandle,paper:Paper,question:String)-
     let mut user_content=vec![json!({"type":"text","text":format!("以下是当前文献 Markdown 原文，仅作为本次回答依据：\n\n{}",markdown)})];
     if wants_vision{user_content.extend(image_content(&state,&paper.id,&version_id,&figures));}
     messages.push(json!({"role":"user","content":user_content}));
-    let body=json!({"model":model(),"messages":messages,"temperature":0.2,"max_tokens":3000,"stream":true,"stream_options":{"include_usage":true}});
+    let body=json!({"model":model(),"messages":messages,"temperature":0.2,"max_tokens":8000,"stream":true,"stream_options":{"include_usage":true}});
     let response=state.http.post(endpoint()).bearer_auth(key()?).json(&body).send().await?;
     if !response.status().is_success(){let status=response.status();let text=response.text().await.unwrap_or_default();anyhow::bail!("DeepSeek {}：{}",status,text);}
     let mut stream=response.bytes_stream();let mut buffer=String::new();let mut answer=String::new();let mut usage=None;
@@ -105,6 +105,7 @@ pub async fn ask(state:Arc<AppState>,app:AppHandle,paper:Paper,question:String)-
             if value.get("usage").is_some(){usage=value.get("usage").cloned();}
         }
     }
+    if answer.trim().is_empty(){anyhow::bail!("DeepSeek 本次未生成回答。模型可能已将输出额度用于推理，请重试。");}
     let inference=answer.contains("【模型推断】")||answer.contains("模型推断");
     if inference{emit("inference",None,None,None,None);}
     db::add_qa(&state.db,&paper.id,"assistant",&answer,&sources,&visual,inference,usage.as_ref())?;
@@ -115,6 +116,7 @@ pub async fn ask(state:Arc<AppState>,app:AppHandle,paper:Paper,question:String)-
 #[cfg(test)]
 mod tests{
     use super::*;
+    static ENV_LOCK:std::sync::Mutex<()>=std::sync::Mutex::new(());
 
     #[test]
     fn accepts_missing_display_metadata_without_losing_sections(){
@@ -130,5 +132,58 @@ mod tests{
         let output=decode_output(r#"{"title_zh":"中文标题","one_sentence":"核心结论","sections":[]}"#).unwrap();
         assert_eq!(output.title_zh,"中文标题");
         assert_eq!(output.one_sentence,"核心结论");
+    }
+
+    #[tokio::test]
+    async fn streams_reject_empty_answers_and_emit_normal_answers(){
+        let _guard=ENV_LOCK.lock().unwrap();
+        let mut server=mockito::Server::new_async().await;
+        let completion=server.mock("POST","/chat/completions").with_status(200).with_header("content-type","text/event-stream")
+            .with_body(concat!(
+                "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"仍在推理\"},\"finish_reason\":null}]}\n\n",
+                "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"length\"}],\"usage\":{\"total_tokens\":3000,\"completion_tokens_details\":{\"reasoning_tokens\":3000}}}\n\n",
+                "data: [DONE]\n\n"
+            )).create_async().await;
+        std::env::set_var("DEEPSEEK_API_KEY","test-key");
+        std::env::set_var("DEEPSEEK_BASE_URL",server.url());
+        std::env::set_var("DEEPSEEK_MODEL","deepseek-flash");
+        let temp=tempfile::tempdir().unwrap();
+        let db=db::open(std::path::Path::new(":memory:")).unwrap();
+        let item_id=db::upsert_paper(&db,"QAEMPTY",1,"Reasoning test",&[],None,"","","","","","journalArticle",&[],false).unwrap();
+        db::set_state(&db,&item_id,"pdf_state","available").unwrap();
+        db::save_markdown(&db,&item_id,"version","sha").unwrap();
+        let version_dir=temp.path().join("files").join(&item_id).join("version");
+        std::fs::create_dir_all(&version_dir).unwrap();
+        std::fs::write(version_dir.join("full.md"),"# 研究方法\n随机对照实验。").unwrap();
+        let paper=db::get_paper(&db,&item_id).unwrap();
+        let state=Arc::new(AppState{db:db.clone(),data_dir:temp.path().to_path_buf(),http:reqwest::Client::new(),zotero_base:String::new(),jobs:Arc::new(tokio::sync::Mutex::new(std::collections::HashMap::new())),collection_sync:Arc::new(tokio::sync::Mutex::new(()))});
+        let app=tauri::test::mock_app();
+        let result=ask(state.clone(),app.handle().clone(),paper,"研究方法是什么？".into()).await;
+        let error=result.expect_err("只有推理而没有正文时不能保存空答案").to_string();
+        assert!(error.contains("未生成回答"));
+        assert!(db::list_qa(&db,&item_id).unwrap().iter().all(|message|message.role!="assistant"));
+        completion.assert_async().await;
+        completion.remove_async().await;
+
+        let normal=server.mock("POST","/chat/completions").with_status(200).with_header("content-type","text/event-stream")
+            .with_body(concat!(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"正常回答\"},\"finish_reason\":null}]}\n\n",
+                "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}],\"usage\":{\"total_tokens\":20}}\n\n",
+                "data: [DONE]\n\n"
+            )).create_async().await;
+        use tauri::Listener;
+        let events=Arc::new(std::sync::Mutex::new(Vec::<QaEvent>::new()));
+        let captured=events.clone();
+        app.listen("qa-event",move |event|{
+            if let Ok(payload)=serde_json::from_str::<QaEvent>(event.payload()){captured.lock().unwrap().push(payload);}
+        });
+        ask(state,app.handle().clone(),db::get_paper(&db,&item_id).unwrap(),"再次提问".into()).await.unwrap();
+        let messages=db::list_qa(&db,&item_id).unwrap();
+        assert_eq!(messages.last().map(|message|(&message.role,&message.content)),Some((&"assistant".into(),&"正常回答".into())));
+        let events=events.lock().unwrap();
+        assert!(events.iter().any(|event|event.item_id==item_id&&event.kind=="delta"&&event.text.as_deref()==Some("正常回答")));
+        assert!(events.iter().any(|event|event.kind=="done"));
+        normal.assert_async().await;
+        std::env::remove_var("DEEPSEEK_API_KEY");std::env::remove_var("DEEPSEEK_BASE_URL");std::env::remove_var("DEEPSEEK_MODEL");
     }
 }

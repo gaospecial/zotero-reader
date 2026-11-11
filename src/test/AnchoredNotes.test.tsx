@@ -123,6 +123,29 @@ describe('AI 解读选段备忘', () => {
     await waitFor(() => expect(document.querySelector('mark.memo-highlight')).not.toBeInTheDocument());
   });
 
+  it('子分类筛选下从备忘中心回跳会解除分类限制并定位原文', async () => {
+    render(<App />);
+    await createMemo('子分类状态下的回跳检查。');
+    const parent = screen.getByRole('button', { name: /^人工智能与教育/ });
+    fireEvent.click(parent.closest('.tree-row')!.querySelector('.tree-toggle')!);
+    fireEvent.click(screen.getByRole('button', { name: /^反馈与评价/ }));
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
+
+    fireEvent.click(memoNavigation());
+    const card = (await screen.findByText('子分类状态下的回跳检查。')).closest('.note-card-anchored') as HTMLElement;
+    fireEvent.click(card.querySelector('button')!);
+
+    await waitFor(() => expect(document.querySelector('#paper-demo-1')).toHaveClass('selected'));
+    await waitFor(() => expect(document.querySelector('mark.memo-highlight')).toHaveTextContent('带有元认知提示的 AI 反馈'));
+    expect(document.querySelector('.primary-nav button.active')).toHaveTextContent('全部文献');
+    expect(screen.getByRole('button', { name: /^人工智能与教育/ }).closest('.tree-row')).not.toHaveClass('active');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    fireEvent.click(document.querySelector('mark.memo-highlight')!);
+    fireEvent.click(await screen.findByRole('button', { name: '删除备忘' }));
+    await waitFor(() => expect(document.querySelector('mark.memo-highlight')).not.toBeInTheDocument());
+  });
+
   it('总备忘新增和清空后侧栏计数同步更新', async () => {
     render(<App />);
     fireEvent.click(await screen.findByText('从“给答案”到“促思考”：智能辅导反馈设计的实证研究'));

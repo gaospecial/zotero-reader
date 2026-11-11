@@ -58,12 +58,13 @@ pub async fn sync_collection(state:State<'_,Arc<AppState>>,app:AppHandle,collect
 
 pub async fn auto_sync_joined(state:Arc<AppState>,app:AppHandle){
     if state.zotero().check().await.is_err(){return;}
-    let _=crate::zotero::sync_existing(&state).await;
+    if let Err(error)=crate::zotero::sync_existing(&state).await{eprintln!("同步 Zotero 分类失败：{error}");return;}
     let joined=match db::list_collections(&state.db){Ok(collections)=>collections.into_iter().filter(|collection|collection.joined).map(|collection|collection.key).collect::<Vec<_>>(),Err(_)=>return};
-    if joined.is_empty(){return;}
+    let refresh_collections=||{let _=app.emit("library-synced",ImportResult{imported:0,queued:0,skipped:0});};
+    if joined.is_empty(){refresh_collections();return;}
     match import_and_queue(&state,&app,&joined).await{
         Ok(result)=>{let _=app.emit("library-synced",result);},
-        Err(error)=>eprintln!("自动同步 Zotero 分类失败：{error}"),
+        Err(error)=>{eprintln!("自动同步 Zotero 分类失败：{error}");refresh_collections();},
     }
 }
 
@@ -81,7 +82,7 @@ pub async fn auto_sync_joined(state:Arc<AppState>,app:AppHandle){
 pub async fn ask_question(state:State<'_,Arc<AppState>>,app:AppHandle,item_id:String,question:String)->CmdResult<()>{
     if question.trim().is_empty(){return Err("请输入问题".into());}
     let paper=db::get_paper(&state.db,&item_id).map_err(err)?;let shared=state.inner().clone();
-    tauri::async_runtime::spawn(async move{if let Err(error)=deepseek::ask(shared,app.clone(),paper,question).await{let _=app.emit("qa-event",QaEvent{item_id,message_id:uuid::Uuid::new_v4().to_string(),kind:"error".into(),text:Some(error.to_string()),sources:None,visual_refs:None,usage:None});}});Ok(())
+    deepseek::ask(shared,app,paper,question).await.map_err(err)
 }
 
 #[tauri::command]pub fn set_read_state(state:State<'_,Arc<AppState>>,item_id:String,read_state:String)->CmdResult<()>{if !["unread","reading","read"].contains(&read_state.as_str()){return Err("无效阅读状态".into());}db::set_state(&state.db,&item_id,"read_state",&read_state).map_err(err)}

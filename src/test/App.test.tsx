@@ -682,6 +682,37 @@ describe('Zotero Reader 工作台', () => {
     expect(await screen.findByText(/“人工智能与教育”同步完成/)).toBeInTheDocument();
   });
 
+  it('已加入子分类提供可见的立即同步按钮', async () => {
+    const sync = vi.spyOn(api, 'syncCollection').mockResolvedValue({ imported: 3, queued: 1, skipped: 0 });
+    render(<App />);
+    const parent = await screen.findByRole('button', { name: /^人工智能与教育/ });
+    fireEvent.click(parent.closest('.tree-row')!.querySelector('.tree-toggle')!);
+    fireEvent.click(screen.getByRole('button', { name: /^反馈与评价/ }));
+
+    const button = await screen.findByRole('button', { name: '立即同步' });
+    fireEvent.click(button);
+    await waitFor(() => expect(sync).toHaveBeenCalledWith('feedback'));
+    expect(await screen.findByText(/“反馈与评价”同步完成/)).toBeInTheDocument();
+  });
+
+  it('同步移除当前子分类后返回全部文献并移除侧栏入口', async () => {
+    const base = await api.bootstrap();
+    let collections = structuredClone(base.collections);
+    vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({ ...base, collections }));
+    vi.spyOn(api, 'syncCollection').mockImplementation(async () => {
+      collections = collections.filter(item => item.key !== 'feedback');
+      return { imported: 0, queued: 0, skipped: 0 };
+    });
+    render(<App />);
+    const parent = await screen.findByRole('button', { name: /^人工智能与教育/ });
+    fireEvent.click(parent.closest('.tree-row')!.querySelector('.tree-toggle')!);
+    fireEvent.click(screen.getByRole('button', { name: /^反馈与评价/ }));
+    fireEvent.click(await screen.findByRole('button', { name: '立即同步' }));
+
+    expect(await screen.findByRole('heading', { name: /全部文献/, level: 1 })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^反馈与评价/ })).not.toBeInTheDocument();
+  });
+
   it('无全文条目只显示 Zotero 元信息并隐藏旧 AI 内容', async () => {
     const paper = {
       ...demoPapers[6],

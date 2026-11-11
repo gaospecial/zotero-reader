@@ -26,7 +26,7 @@ export default function QaPanel({ paper, notify, onSource }: { paper: PaperDetai
   const ask = async (question = input) => {
     if (!question.trim() || streaming) return;
     setInput(''); setStreaming(true); setStreamText(''); setStreamSources([]); setUsage(null);
-    try { await api.ask(paper.id, question.trim(), handleEvent); await api.qa(paper.id).then(setMessages); if (!('__TAURI_INTERNALS__' in window)) { setStreaming(false); setStreamText(''); } } catch (error) { setStreaming(false); notify(String(error), 'error'); }
+    try { await api.ask(paper.id, question.trim(), handleEvent); await api.qa(paper.id).then(setMessages); setStreaming(false); setStreamText(''); } catch (error) { setStreaming(false); notify(String(error), 'error'); }
   };
   const clear = async () => { if (!window.confirm('清空当前文献的全部问答？文献、解读和备忘不会受影响。')) return; await api.clearQa(paper.id); setMessages([]); notify('当前问答会话已清空。', 'success'); };
   const suggestions = ['这项研究最重要的结论是什么？', '研究方法有哪些局限？', '请解释图 1 表达的结果'];

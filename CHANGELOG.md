@@ -6,19 +6,26 @@
 
 ## [未发布]
 
+## [0.6.2] - 2026-11-11
+
 ### 新增
 
 - 左侧栏实时显示未删除备忘的数量，并在新增、删除和清空备忘后同步刷新。
+- 已加入分类的页面提供“立即同步”按钮，可立即获取该分类的新文献，同时保留右键同步入口。
 
 ### 变更
 
 - 备忘卡片完整显示选段原文，并按内容自然高度排列，不再统一截断为四行。
 - 从备忘中心回到原文时清除文库筛选并定位对应高亮，不再自动打开编辑窗口。
+- 提高文献问答的输出额度，减少模型推理挤占正文输出导致的空回答。
 
 ### 修复
 
 - 旧版解读的备忘无法匹配相同文字时，回退定位到原章节并明确提示。
 - 修复浏览器演示模式清空总备忘后计数残留的问题。
+- 修复文献问答已经完成或失败后界面仍可能持续等待的问题，不再单纯依赖流式完成事件退出等待状态。
+- 修复模型只返回推理而没有正文时静默保存空回答的问题，改为显示明确错误。
+- 同步时移除 Zotero 中已删除的分类；当前分类消失后自动返回全部文献，同时保留文献、备忘和历史关联。
 
 ## [0.5.5] - 2026-11-10
 
@@ -105,7 +112,8 @@
 - 支持应用回收站，以及 SQLite、Markdown 历史版本和图片的 ZIP 备份与恢复。
 - 提供浏览器演示模式、自动化测试、桌面构建与跨平台发布工作流。
 
-[未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.5.5...HEAD
+[未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/gaospecial/zotero-reader/compare/v0.5.5...v0.6.2
 [0.5.5]: https://github.com/gaospecial/zotero-reader/compare/dc4beee...v0.5.5
 [0.5.4]: https://github.com/gaospecial/zotero-reader/compare/dabd41f...dc4beee
 [0.5.3]: https://github.com/gaospecial/zotero-reader/compare/f82df6f...dabd41f
