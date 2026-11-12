@@ -48,7 +48,15 @@
 
 ## 快速上手
 
-1. **启动 Zotero**：打开 Zotero 桌面端，确保本机 Zotero 服务可通过 `http://127.0.0.1:23119` 访问。
+### 开启 Zotero 本地服务
+
+ZR 通过 Zotero 的本地 API 读取文库和 PDF。首次连接前，请在 Zotero 桌面端打开“设置”，进入“高级（Advanced）→ 杂项（Miscellaneous）”，勾选“允许此计算机上的其他应用程序与 Zotero 通讯（Allow other applications on this computer to communicate with Zotero）”。
+
+启用后，Zotero 会在 `http://localhost:23119/api/` 提供本地服务。ZR 默认通过 `http://127.0.0.1:23119/api/users/0` 连接；使用期间请保持 Zotero 运行。
+
+![在 Zotero 的“高级 → 杂项”中勾选允许其他应用程序与 Zotero 通讯](https://vnote-1251564393.cos.ap-chengdu.myqcloud.com/picgo/20261112145633575.png)
+
+1. **启动 Zotero**：打开 Zotero 桌面端，并按上一节启用本地服务。
 2. **配置 AI 服务**：准备 Doc2X 与 DeepSeek API Key，在 Zotero Reader 的“设置 → 服务连接”中分别保存。
 3. **导入文献**：在分类目录中选择需要阅读的 Zotero 分类，预览并加入文库；后续通过“与 Zotero 同步”更新内容。
 4. **阅读与问答**：点击文献展开阅读区，查看题录、AI 解读和论文图片，或围绕当前论文提问。

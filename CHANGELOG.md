@@ -6,6 +6,12 @@
 
 ## [未发布]
 
+## [0.6.3] - 2026-11-12
+
+### 变更
+
+- 在 README 中补充 Zotero 本地服务的启用步骤和设置截图，帮助首次使用者完成连接配置。
+
 ## [0.6.2] - 2026-11-11
 
 ### 新增
@@ -113,6 +119,7 @@
 - 提供浏览器演示模式、自动化测试、桌面构建与跨平台发布工作流。
 
 [未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.6.2...HEAD
+[0.6.3]: https://github.com/gaospecial/zotero-reader/compare/7ba3eba...HEAD
 [0.6.2]: https://github.com/gaospecial/zotero-reader/compare/v0.5.5...v0.6.2
 [0.5.5]: https://github.com/gaospecial/zotero-reader/compare/dc4beee...v0.5.5
 [0.5.4]: https://github.com/gaospecial/zotero-reader/compare/dabd41f...dc4beee
