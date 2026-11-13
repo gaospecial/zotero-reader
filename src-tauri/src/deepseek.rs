@@ -9,7 +9,7 @@ use tauri::{AppHandle,Emitter};
 pub const DEFAULT_PROMPT:&str=include_str!("../../prompts/literature_interpretation.txt");
 
 fn key()->Result<String>{credentials::get(ApiService::Deepseek)}
-pub fn model()->String{crate::environment::get("DEEPSEEK_MODEL").unwrap_or_else(||"deepseek-v4-flash-vision-exp".into())}
+pub fn model()->String{crate::environment::get("DEEPSEEK_MODEL").unwrap_or_else(||"deepseek-flash".into())}
 fn endpoint()->String{crate::environment::get("DEEPSEEK_BASE_URL").unwrap_or_else(||"https://api.deepseek.com".into()).trim_end_matches('/').to_string()+"/chat/completions"}
 
 fn image_content(state:&AppState,item_id:&str,version_id:&str,figures:&[Figure])->Vec<Value>{
