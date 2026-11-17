@@ -42,16 +42,14 @@ pub fn resolve_attachment_path(path: &str, filename: Option<&str>, item_key: &st
 }
 
 fn configured_data_dir() -> Option<PathBuf> {
-    if let Some(path)=crate::environment::get("ZOTERO_DATA_DIR"){return Some(PathBuf::from(path));}
-    let home=std::env::var_os("HOME").or_else(||std::env::var_os("USERPROFILE"))?;
-    Some(PathBuf::from(home).join("Zotero"))
+    crate::zotero_paths::data_dir()
 }
 
 fn local_attachment_path(item: &Value, key: &str) -> Option<PathBuf> {
     let data=item.get("data")?;
     let path=data.get("path").and_then(Value::as_str).unwrap_or_default();
     let filename=data.get("filename").and_then(Value::as_str);
-    let root=crate::environment::get("ZOTERO_ROOT_DIR").map(PathBuf::from);
+    let root=crate::zotero_paths::root_dir();
     let data_dir=configured_data_dir();
     resolve_attachment_path(path,filename,key,root.as_deref(),data_dir.as_deref())
 }

@@ -83,8 +83,8 @@ API Key 保存在本机应用数据目录的 `config.json` 中，不写入文献
 - `deepseek.apiKey`：DeepSeek API Key。
 - `doc2x.apiKey`：Doc2X API Key。
 - `deepseek.model`：用于文献解读与问答的模型，默认 `deepseek-flash`。
-- `zotero.dataDir`：Zotero 数据目录，默认为 `~/Zotero`。
-- `zotero.rootDir`：`attachments:` 链接附件的根目录，仅使用此类附件时需要设置。
+- `zotero.dataDir`：Zotero 数据目录；默认自动读取 Zotero 配置，读取不到时使用 `~/Zotero`。
+- `zotero.rootDir`：`attachments:` 链接附件的根目录；默认自动读取 Zotero 的链接附件基准目录。
 - `literatureInterpretation.prompt`：文献解读提示词，可在设置页查看和修改。
 
 修改 Zotero 本地 API 地址后需要重启应用。请勿将包含真实 API Key 的配置文件或备份发送给他人。
@@ -93,7 +93,7 @@ API Key 保存在本机应用数据目录的 `config.json` 中，不写入文献
 
 应用优先从 Zotero 附件的本地路径读取 PDF，支持绝对路径、`attachments:`、`storage:` 和纯文件名；本地路径不可用时，会尝试通过 Zotero 文件接口读取。
 
-如果 Zotero 数据目录不在默认位置，请在设置中指定 `zotero.dataDir`；该目录可以指向 Zotero 根目录，也可以直接指向其中的 `storage` 目录。使用 `attachments:` 链接附件时，还需要设置 `zotero.rootDir`。
+应用会从 Zotero 默认配置档的 `prefs.js` 自动读取自定义数据目录和链接附件基准目录，无需重复配置。显式设置的环境变量或 `zotero.dataDir`、`zotero.rootDir` 优先于自动识别；如果 Zotero 使用便携配置或自动识别失败，再手动指定路径。`zotero.dataDir` 可以指向 Zotero 根目录，也可以直接指向其中的 `storage` 目录。
 
 无法读取的 PDF 会显示警告并被单独跳过，不影响同一分类中的其他文献。修复文件路径后重新同步即可恢复处理；没有 PDF 的条目只展示题录与摘要，不调用 AI 解读或问答。
 

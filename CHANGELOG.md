@@ -6,6 +6,12 @@
 
 ## [未发布]
 
+## [0.7.0] - 2026-11-17
+
+### 变更
+
+- 自动读取 Zotero 默认配置档中的自定义数据目录和链接附件基准目录；显式环境变量或配置文件仍保持最高优先级。
+
 ## [0.6.5] - 2026-11-17
 
 ### 变更
@@ -138,8 +144,9 @@
 - 支持应用回收站，以及 SQLite、Markdown 历史版本和图片的 ZIP 备份与恢复。
 - 提供浏览器演示模式、自动化测试、桌面构建与跨平台发布工作流。
 
-[未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.6.4...HEAD
-[0.6.5]: https://github.com/gaospecial/zotero-reader/compare/v0.6.4...HEAD
+[未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.6.5...HEAD
+[0.7.0]: https://github.com/gaospecial/zotero-reader/compare/v0.6.5...HEAD
+[0.6.5]: https://github.com/gaospecial/zotero-reader/compare/v0.6.4...v0.6.5
 [0.6.4]: https://github.com/gaospecial/zotero-reader/compare/6977b23...v0.6.4
 [0.6.3]: https://github.com/gaospecial/zotero-reader/compare/7ba3eba...6977b23
 [0.6.2]: https://github.com/gaospecial/zotero-reader/compare/v0.5.5...v0.6.2

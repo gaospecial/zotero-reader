@@ -11,6 +11,7 @@ mod models;
 mod pipeline;
 mod state;
 mod zotero;
+mod zotero_paths;
 
 use state::AppState;
 use std::{collections::HashMap,sync::Arc,time::Duration};
