@@ -10,7 +10,7 @@ function PaperRow({ paper, selected, compact, trash, starred, onOpen, onTrash, o
   return <article id={`paper-${paper.id}`} className={`paper-row ${selected ? 'selected' : ''} ${compact ? 'compact' : ''} ${paper.readState === 'unread' ? 'unread' : ''}`}>
     <button className={`star-marker ${starred ? 'is-starred' : ''}`} onClick={onStar} aria-label={starred ? '取消星标' : '添加星标'} aria-pressed={starred} title={starred ? '取消星标' : '添加星标'}><Star size={15} fill={starred ? 'currentColor' : 'none'} /></button>
     <button className="paper-content" onClick={onOpen} aria-expanded={selected} title={selected ? '点击关闭解读' : '点击打开解读'}>
-      <div className="paper-title-line"><h3>{paper.pdfState === 'unavailable' ? paper.title : paper.titleZh || paper.title}</h3><StateBadge paper={paper} /></div>
+      <div className="paper-title-line"><h3>{paper.pdfState === 'unavailable' ? paper.title : paper.titleZh || paper.title}</h3>{paper.readState === 'reading' && <span className="state-badge reading-state">阅读中</span>}<StateBadge paper={paper} /></div>
       <p>{paper.pdfState === 'unavailable' ? paper.abstractNote || 'Zotero 中未填写摘要。' : paper.aiState === 'succeeded' ? paper.oneSentence : paper.needsPdfChoice ? '此文献包含多个 PDF，请选择主 PDF 后开始解析。' : paper.error || '正在等待自动生成结构化中文解读…'}</p>
       <div className="paper-meta"><span className="paper-citation">{paper.creators[0] || '未知作者'}{', '}<strong className="paper-journal" title={paper.publication || paper.itemType}>{paper.journalAbbreviation || paper.publication || paper.itemType}</strong>{paper.year ? `, ${paper.year}` : ''}</span></div>
     </button>
@@ -47,7 +47,7 @@ export default function PaperList({ papers, selectedId, readerDetails, expandedI
   const [filter, setFilter] = useState('全部');
   const [scrollTop, setScrollTop] = useState(0);
   const [readerFontSize, setReaderFontSize] = useState(12);
-  const filtered = useMemo(() => papers.filter(paper => filter === '全部' || (filter === '已读' && paper.readState === 'read') || (filter === '未读' && paper.readState === 'unread') || (filter === '处理失败' && (paper.parseState === 'failed' || paper.aiState === 'failed'))).sort((a, b) => sort === '标题排序' ? (a.titleZh || a.title).localeCompare(b.titleZh || b.title, 'zh-CN') : b.updatedAt.localeCompare(a.updatedAt)), [papers, filter, sort]);
+  const filtered = useMemo(() => papers.filter(paper => filter === '全部' || (filter === '已读' && paper.readState === 'read') || (filter === '未读' && (paper.readState === 'unread' || expandedIds.includes(paper.id))) || (filter === '处理失败' && (paper.parseState === 'failed' || paper.aiState === 'failed'))).sort((a, b) => sort === '标题排序' ? (a.titleZh || a.title).localeCompare(b.titleZh || b.title, 'zh-CN') : b.updatedAt.localeCompare(a.updatedAt)), [papers, filter, sort, expandedIds]);
   const hasExpandedReaders = filtered.some(paper => expandedIds.includes(paper.id));
   const comfortable = expandAllMode && hasExpandedReaders;
   const listRef = useRef<HTMLDivElement>(null);

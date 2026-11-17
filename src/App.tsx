@@ -126,6 +126,8 @@ export default function App() {
       setView('reader');
       if (detail.readState === 'unread') {
         await api.setRead(id, 'reading');
+        setReaderDetails(current => current[id] ? { ...current, [id]: { ...current[id], readState: 'reading' } } : current);
+        setSelected(current => current?.id === id ? { ...current, readState: 'reading' } : current);
         await refresh();
       }
     } catch (error) { notify(String(error), 'error'); }
@@ -208,10 +210,16 @@ export default function App() {
   };
   const syncTrash = async () => { if (!window.confirm(`即将把 ${stats.pendingSync} 篇文献移入 Zotero 回收站。此操作需要 Zotero 写授权，是否继续？`)) return; setSyncing(true); try { const count = await api.syncTrash(); await refresh(); notify(`已同步 ${count} 篇到 Zotero 回收站。`, 'success'); } catch (error) { notify(String(error), 'error'); } finally { setSyncing(false); } };
   const starredCount = allPapers.filter(paper => starredIds[paper.id] ?? readStoredStar(paper.id)).length;
-  const visiblePapers = collection === 'starred' && view !== 'trash' ? papers.filter(paper => starredIds[paper.id] ?? readStoredStar(paper.id)) : papers;
+  const visiblePapers = (() => {
+    const visible = collection === 'starred' && view !== 'trash' ? papers.filter(paper => starredIds[paper.id] ?? readStoredStar(paper.id)) : papers;
+    if (collection !== 'unread' || search) return visible;
+    const visibleIds = new Set(visible.map(paper => paper.id));
+    const openPapers = expandedIds.map(id => readerDetails[id]).filter((paper): paper is PaperDetail => Boolean(paper) && !visibleIds.has(paper.id));
+    return [...visible, ...openPapers].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  })();
   const title = view === 'trash' ? '应用回收站' : collection === 'starred' ? '星标文献' : collection === 'unread' ? '未读文献' : collection === 'all' ? '全部文献' : currentCollection?.name ?? '文献资源库';
   const subtitle = view === 'trash' ? '本地回收不会影响 Zotero，除非你显式同步。' : '';
-  const headingCount = unjoinedCollection ? collectionPreview?.total ?? unjoinedCollection.itemCount : visiblePapers.length;
+  const headingCount = unjoinedCollection ? collectionPreview?.total ?? unjoinedCollection.itemCount : collection === 'unread' && !search && view !== 'trash' ? stats.unread : visiblePapers.length;
 
   return <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`} style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
     <Sidebar view={view} onView={setView} collection={collection} onCollection={setCollection} collections={collectionsWithOverviews} stats={stats} starredCount={starredCount} services={services} onImport={() => openImport()} onSync={syncCollection} syncingCollection={syncingCollection} onSettings={() => setSettingsOpen(true)} width={sidebarWidth} collapsed={sidebarCollapsed} onWidthChange={width => setSidebarWidth(Math.max(200, Math.min(360, Math.round(width))))} onToggleCollapsed={() => setSidebarCollapsed(value => !value)} />

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import packageManifest from '../../package.json';
 import App from '../App';
@@ -97,7 +97,7 @@ describe('Zotero Reader 工作台', () => {
     expect(screen.getByRole('separator', { name: '调整左侧栏宽度' })).toHaveAttribute('aria-valuenow', '210');
   });
 
-  it('打开未读文献后列表与侧栏计数同步减少', async () => {
+  it('打开未读文献后减少未读计数但保留当前文献与阅读器', async () => {
     const papers = demoPapers.filter(paper => paper.readState === 'unread').map(paper => ({ ...paper }));
     const base = await api.bootstrap();
     vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({
@@ -121,8 +121,66 @@ describe('Zotero Reader 工作台', () => {
     expect(unreadNavigation).toHaveTextContent('未读3');
     fireEvent.click(document.querySelector('#paper-demo-1 .paper-content')!);
     await waitFor(() => expect(setRead).toHaveBeenCalledWith('demo-1', 'reading'));
-    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(2));
-    expect(unreadNavigation).toHaveTextContent('未读2');
+    await waitFor(() => expect(unreadNavigation).toHaveTextContent('未读2'));
+    expect(document.querySelector('.library-heading h1')).toHaveTextContent('未读文献2');
+    expect(document.querySelectorAll('.paper-row')).toHaveLength(3);
+    expect(document.querySelector('#paper-demo-1')).toHaveClass('selected');
+    expect(within(document.querySelector('#paper-demo-1') as HTMLElement).getByText('阅读中')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '生成式人工智能如何促进大学生的自我调节学习？', level: 1 })).toBeInTheDocument();
+  });
+
+  it('在列表未读筛选中保留当前文献但切换已读后按新筛选移除', async () => {
+    const papers = demoPapers.map(paper => ({ ...paper }));
+    const base = await api.bootstrap();
+    vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({ ...base, papers: [...papers] }));
+    vi.spyOn(api, 'listLibrary').mockImplementation(async () => [...papers]);
+    vi.spyOn(api, 'detail').mockImplementation(async id => demoDetail(papers.find(paper => paper.id === id)!));
+    const setRead = vi.spyOn(api, 'setRead').mockImplementation(async (id, readState) => {
+      papers.find(item => item.id === id)!.readState = readState as (typeof papers)[number]['readState'];
+    });
+
+    render(<App />);
+    await screen.findByText('生成式人工智能如何促进大学生的自我调节学习？');
+    const unreadFilter = [...document.querySelectorAll<HTMLButtonElement>('.filter-tabs button')].find(button => button.textContent === '未读')!;
+    fireEvent.click(unreadFilter);
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(3));
+    fireEvent.click(document.querySelector('#paper-demo-1 .paper-content')!);
+
+    await waitFor(() => expect(setRead).toHaveBeenCalledWith('demo-1', 'reading'));
+    await waitFor(() => expect(document.querySelector('#paper-demo-1')).not.toHaveClass('unread'));
+    expect(document.querySelectorAll('.paper-row')).toHaveLength(3);
+    expect(document.querySelector('#paper-demo-1')).toHaveClass('selected');
+    expect(screen.getByRole('heading', { name: '生成式人工智能如何促进大学生的自我调节学习？', level: 1 })).toBeInTheDocument();
+    const readFilter = [...document.querySelectorAll<HTMLButtonElement>('.filter-tabs button')].find(button => button.textContent === '已读')!;
+    fireEvent.click(readFilter);
+    await waitFor(() => expect(document.querySelector('#paper-demo-1')).not.toBeInTheDocument());
+  });
+
+  it('关闭未读文献阅读器后从当前未读列表移除', async () => {
+    const papers = demoPapers.filter(paper => paper.readState === 'unread').map(paper => ({ ...paper }));
+    const base = await api.bootstrap();
+    vi.spyOn(api, 'bootstrap').mockImplementation(async () => ({
+      ...base,
+      papers,
+      stats: { ...base.stats, unread: papers.filter(paper => paper.localState === 'active' && paper.readState === 'unread').length },
+    }));
+    vi.spyOn(api, 'listLibrary').mockImplementation(async query =>
+      query.status === 'unread' ? papers.filter(paper => paper.readState === 'unread') : papers
+    );
+    vi.spyOn(api, 'detail').mockImplementation(async id => demoDetail(papers.find(paper => paper.id === id)!));
+    vi.spyOn(api, 'setRead').mockImplementation(async (id, readState) => {
+      papers.find(item => item.id === id)!.readState = readState as (typeof papers)[number]['readState'];
+    });
+
+    render(<App />);
+    fireEvent.click(document.querySelectorAll('.primary-nav button')[1]);
+    await waitFor(() => expect(document.querySelectorAll('.paper-row')).toHaveLength(3));
+    fireEvent.click(document.querySelector('#paper-demo-1 .paper-content')!);
+    await waitFor(() => expect(document.querySelector('#paper-demo-1')).toHaveClass('selected'));
+    fireEvent.click(screen.getByRole('button', { name: '收起文章' }));
+
+    await waitFor(() => expect(document.querySelector('#paper-demo-1')).not.toBeInTheDocument());
+    expect(document.querySelectorAll('.paper-row')).toHaveLength(2);
   });
 
   it('打开未读文献并刷新状态后保持列表顺序与选中项', async () => {

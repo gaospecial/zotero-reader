@@ -54,7 +54,7 @@ ZR 通过 Zotero 的本地 API 读取文库和 PDF。首次连接前，请在 Zo
 
 启用后，Zotero 会在 `http://localhost:23119/api/` 提供本地服务。ZR 默认通过 `http://127.0.0.1:23119/api/users/0` 连接；使用期间请保持 Zotero 运行。
 
-![在 Zotero 的“高级 → 杂项”中勾选允许其他应用程序与 Zotero 通讯](https://vnote-1251564393.cos.ap-chengdu.myqcloud.com/picgo/20261112145633575.png)
+![在 Zotero 的“高级 → 杂项”中勾选允许其他应用程序与 Zotero 通讯](docs/images/zotero-preferences.webp)
 
 1. **启动 Zotero**：打开 Zotero 桌面端，并按上一节启用本地服务。
 2. **配置 AI 服务**：准备 Doc2X 与 DeepSeek API Key，在 Zotero Reader 的“设置 → 服务连接”中分别保存。

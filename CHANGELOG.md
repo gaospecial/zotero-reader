@@ -6,6 +6,16 @@
 
 ## [未发布]
 
+## [0.6.4] - 2026-11-17
+
+### 变更
+
+- README 中的 Zotero 设置截图改为仓库内托管，并压缩图片尺寸和文件大小，避免依赖外部云存储。
+
+### 修复
+
+- 在未读视图打开文献时保留当前文献行和阅读器，仅同步减少未读计数，并显示“阅读中”状态。
+
 ## [0.6.3] - 2026-11-12
 
 ### 变更
@@ -118,8 +128,9 @@
 - 支持应用回收站，以及 SQLite、Markdown 历史版本和图片的 ZIP 备份与恢复。
 - 提供浏览器演示模式、自动化测试、桌面构建与跨平台发布工作流。
 
-[未发布]: https://github.com/gaospecial/zotero-reader/compare/v0.6.2...HEAD
-[0.6.3]: https://github.com/gaospecial/zotero-reader/compare/7ba3eba...HEAD
+[未发布]: https://github.com/gaospecial/zotero-reader/compare/6977b23...HEAD
+[0.6.4]: https://github.com/gaospecial/zotero-reader/compare/6977b23...HEAD
+[0.6.3]: https://github.com/gaospecial/zotero-reader/compare/7ba3eba...6977b23
 [0.6.2]: https://github.com/gaospecial/zotero-reader/compare/v0.5.5...v0.6.2
 [0.5.5]: https://github.com/gaospecial/zotero-reader/compare/dc4beee...v0.5.5
 [0.5.4]: https://github.com/gaospecial/zotero-reader/compare/dabd41f...dc4beee
