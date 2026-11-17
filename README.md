@@ -65,6 +65,15 @@ ZR 通过 Zotero 的本地 API 读取文库和 PDF。首次连接前，请在 Zo
 
 ## 设置说明
 
+### 获取 API Key
+
+使用前需要分别准备 Doc2X 和 DeepSeek 的 API Key：
+
+1. **Doc2X**：前往 [Doc2X 开放平台](https://open.noedgeai.com/login?intent=api) 注册或登录，按页面提示创建 API Key；之后可在 [API Key 管理](https://open.noedgeai.com/apiKeys) 页面查看和管理。Zotero Reader 调用的是 Doc2X API，开放平台额度与网页版、客户端会员额度不通用，需要单独购买 API 额度。
+2. **DeepSeek**：前往 [DeepSeek 开放平台 API Keys](https://platform.deepseek.com/api_keys) 注册或登录并创建 API Key。DeepSeek 的接口说明见 [API 文档](https://api-docs.deepseek.com/)。
+
+API Key 只会保存在本机配置中。请勿把真实 Key 写入 README、Issue、截图或其他公开位置。
+
 ### 服务连接
 
 API Key 保存在本机应用数据目录的 `config.json` 中，不写入文献数据库或备份。设置页默认隐藏 API Key，可点击眼睛图标查看或再次隐藏。也可以在设置页点击“打开 config.json”直接编辑配置。
@@ -73,7 +82,7 @@ API Key 保存在本机应用数据目录的 `config.json` 中，不写入文献
 
 - `deepseek.apiKey`：DeepSeek API Key。
 - `doc2x.apiKey`：Doc2X API Key。
-- `deepseek.model`：用于文献解读与问答的模型。
+- `deepseek.model`：用于文献解读与问答的模型，默认 `deepseek-flash`。
 - `zotero.dataDir`：Zotero 数据目录，默认为 `~/Zotero`。
 - `zotero.rootDir`：`attachments:` 链接附件的根目录，仅使用此类附件时需要设置。
 - `literatureInterpretation.prompt`：文献解读提示词，可在设置页查看和修改。

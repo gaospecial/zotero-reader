@@ -12,6 +12,7 @@ pub const ZOTERO_ROOT_DIR:&str="zotero.rootDir";
 pub const ZOTERO_LOCAL_BASE_URL:&str="zotero.localBaseUrl";
 pub const LITERATURE_PROMPT:&str="literatureInterpretation.prompt";
 
+const LEGACY_DEEPSEEK_MODEL:&str="deepseek-v4-flash-vision-exp";
 const DEFAULT_PROMPT:&str=include_str!("../../prompts/literature_interpretation.txt");
 static CONFIG_PATH:OnceLock<PathBuf>=OnceLock::new();
 static CONFIG_LOCK:Mutex<()>=Mutex::new(());
@@ -19,7 +20,7 @@ static CONFIG_LOCK:Mutex<()>=Mutex::new(());
 fn defaults()->Map<String,Value>{
     let values=[
         (DEEPSEEK_API_KEY,""),(DOC2X_API_KEY,""),
-        (DEEPSEEK_MODEL,"deepseek-v4-flash-vision-exp"),
+        (DEEPSEEK_MODEL,"deepseek-flash"),
         (DEEPSEEK_BASE_URL,"https://api.deepseek.com"),
         (DOC2X_DOWNLOAD_HOSTS,"doc2x.noedgeai.com,noedgeai.com,aliyuncs.com"),
         (ZOTERO_DATA_DIR,""),(ZOTERO_ROOT_DIR,""),
@@ -67,10 +68,16 @@ fn inherit_environment(config:&mut Map<String,Value>,mut lookup:impl FnMut(&str)
     config.insert("config.version".to_string(),Value::Number(1.into()));true
 }
 
+fn migrate_legacy_default_model(config:&mut Map<String,Value>)->bool{
+    if value(config,DEEPSEEK_MODEL)!=Some(LEGACY_DEEPSEEK_MODEL){return false;}
+    config.insert(DEEPSEEK_MODEL.to_string(),Value::String("deepseek-flash".to_string()));true
+}
+
 pub fn init(data_dir:&Path)->Result<PathBuf>{
     let path=CONFIG_PATH.get_or_init(||data_dir.join("config.json")).clone();
     let _lock=CONFIG_LOCK.lock().map_err(|_|anyhow::anyhow!("配置锁不可用"))?;
-    let mut config=read_config(&path)?;let mut changed=inherit_environment(&mut config,crate::environment::process_or_shell);
+    let mut config=read_config(&path)?;let mut changed=migrate_legacy_default_model(&mut config);
+    changed|=inherit_environment(&mut config,crate::environment::process_or_shell);
     for (key,default) in defaults(){if !config.contains_key(&key){config.insert(key,default);changed=true;}}
     if changed||!path.exists(){write_config(&path,&config)?;}
     Ok(path)
@@ -130,6 +137,19 @@ mod tests{
         assert_eq!(get_from(&path,DEEPSEEK_MODEL).unwrap().as_deref(),Some("custom-model"));
         assert_eq!(get_from(&path,LITERATURE_PROMPT).unwrap().as_deref(),Some(DEFAULT_PROMPT.trim_end()));
         assert!(path.exists());
+    }
+
+    #[test]
+    fn migrates_legacy_default_model_but_preserves_custom_model(){
+        let mut legacy=Map::new();
+        legacy.insert(DEEPSEEK_MODEL.to_string(),Value::String(LEGACY_DEEPSEEK_MODEL.to_string()));
+        assert!(migrate_legacy_default_model(&mut legacy));
+        assert_eq!(value(&legacy,DEEPSEEK_MODEL),Some("deepseek-flash"));
+
+        let mut custom=Map::new();
+        custom.insert(DEEPSEEK_MODEL.to_string(),Value::String("user-model".to_string()));
+        assert!(!migrate_legacy_default_model(&mut custom));
+        assert_eq!(value(&custom,DEEPSEEK_MODEL),Some("user-model"));
     }
 
     #[test]
